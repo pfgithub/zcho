@@ -23,7 +23,7 @@ Options:
     -h: Print this message
     --: Stop parsing options
 Escape Sequences (for -e):
-    \a, \b, \c, \d, \e, \f, \n, \r, \t, \v
+    \\, \a, \b, \c, \d, \e, \f, \n, \r, \t, \v
     \0NNN with octal value NNN (1-3 digits)
     \xHH with hex value HH (1-2 digits)
 ```
