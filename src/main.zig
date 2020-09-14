@@ -72,19 +72,19 @@ pub fn main() !u8 {
 
 fn printHelp(out: anytype) @TypeOf(out).Error!void {
     try out.writeAll(
-        \\ Usage:
-        \\   zcho [options] [message]
-        \\ Options:
-        \\   -E: Set print mode: raw (default)
-        \\   -e: Set print mode: backslash escape interpolation
-        \\   -p: Set print mode: escaped printing
-        \\   -n: Do not output a newline
-        \\   -s: Do not seperate message with spaces
-        \\   --: Stop parsing options
-        \\ Escape Sequences (for -e):
-        \\   \a, \b, \c, \d, \e, \f, \n, \r, \t, \v
-        \\   \0NNN with octal value NNN (1-3 digits)
-        \\   \xHH with hex value HH (1-2 digits)
+        \\Usage:
+        \\    zcho [options] [message]
+        \\Options:
+        \\    -E: Set print mode: raw (default)
+        \\    -e: Set print mode: backslash escape interpolation
+        \\    -p: Set print mode: escaped printing
+        \\    -n: Do not output a newline
+        \\    -s: Do not seperate message with spaces
+        \\    --: Stop parsing options
+        \\Escape Sequences (for -e):
+        \\    \a, \b, \c, \d, \e, \f, \n, \r, \t, \v
+        \\    \0NNN with octal value NNN (1-3 digits)
+        \\    \xHH with hex value HH (1-2 digits)
     );
 }
 
