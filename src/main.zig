@@ -1,10 +1,5 @@
 const std = @import("std");
 
-fn die(msg: []const u8) u8 {
-    std.debug.warn("Error: {}\n", .{msg});
-    return 1;
-}
-
 pub fn main() !u8 {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -80,6 +75,7 @@ fn printHelp(out: anytype) @TypeOf(out).Error!void {
         \\    -p: Set print mode: escaped printing
         \\    -n: Do not output a newline
         \\    -s: Do not seperate message with spaces
+        \\    -h: Print this message
         \\    --: Stop parsing options
         \\Escape Sequences (for -e):
         \\    \a, \b, \c, \d, \e, \f, \n, \r, \t, \v
@@ -171,13 +167,3 @@ fn writeUnescape(out: anytype, arg: []const u8) @TypeOf(out).Error!bool {
     if (escape) try out.writeByte('\\');
     return false;
 }
-
-// instead of die("bad arg"), either:
-// `echo -ea 'hi\na'`
-// :: fish echo
-// ```
-// -ea hi
-// a
-// ```
-// :: gnu coreutils echo
-// `-ea hi\na`
