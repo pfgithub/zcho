@@ -5,7 +5,7 @@ pub fn build(b: *Builder) void {
 
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("zcho", "src/main.zig");
+    const exe = b.addExecutable("zcho", "src/zcho.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
