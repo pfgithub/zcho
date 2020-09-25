@@ -25,7 +25,8 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
             try out.writeAll(arg);
             len += arg.len;
         } else {
-            try out.writeAll(" \x1b[36m");
+            if (i + 1 == idx) try out.writeAll(" \x1b[31m") //
+            else try out.writeAll(" \x1b[36m");
             try out.writeAll(arg);
             len += arg.len;
         }
@@ -91,11 +92,19 @@ pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
 }
 
 const Programs = struct {
-    zcho: @import("zcho.zig"),
-    zrogress: @import("zrogress.zig"),
+    echo: @import("zcho.zig"),
+    progress: @import("zrogress.zig"),
+    clreol: ClrEol,
     @"--help": HelpPage,
 };
 
+const ClrEol = struct {
+    fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void {
+        if (ai.next()) |arg| return reportError(ai, ai.index, "Args not allowed");
+        try out.writeAll("\x1b[K");
+    }
+    const shortdesc = "same as `tput el`";
+};
 const HelpPage = struct {
     fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void {
         try out.writeAll("Usage:\n");

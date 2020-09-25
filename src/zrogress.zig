@@ -2,6 +2,9 @@ const std = @import("std");
 const help = @import("main.zig");
 const ArgsIter = help.ArgsIter;
 const reportError = help.reportError;
+const spinners_file = @import("spinners.zig");
+const Spinner = spinners_file.Spinner;
+const spinners = spinners_file.spinners;
 
 pub const main = help.anyMain(exec);
 
@@ -34,33 +37,39 @@ const Config = struct {
     kind_index: usize = 0,
     demo: bool = false,
     preset: Preset = .default,
-    _: []const []const u8 = &[_][]const u8{},
+    _: []const Positional = &[_]Positional{},
 };
+const Positional = struct { text: []const u8, pos: usize };
 
 pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     var cfg = Config{};
-    var positionals = std.ArrayList([]const u8).init(alloc);
+    var positionals = std.ArrayList(Positional).init(alloc);
     while (ai.next()) |arg| {
         if (cfg.parsing_args) {
             if (std.mem.eql(u8, arg, "--")) {
                 cfg.parsing_args = false;
                 continue;
             }
-            if(std.mem.eql(u8, arg, "--spinner")) {
+            if (std.mem.eql(u8, arg, "--spinner")) {
                 cfg.kind = .spinner;
                 cfg.kind_index = ai.index;
+                continue;
             }
             if (std.mem.startsWith(u8, arg, "-")) {
                 return help.reportError(ai, ai.index, "Bad arg. See --help");
             }
         }
-        try positionals.append(arg);
+        try positionals.append(.{ .text = arg, .pos = ai.index });
     }
     cfg._ = positionals.toOwnedSlice();
-    
-    switch(cfg.kind) {
+
+    switch (cfg.kind) {
         .spinner => {
-            return reportError(ai, cfg.kind_index, "TODO support spinner");
+            if (cfg._.len > 0) return reportError(ai, cfg._[0].pos, "usage eg: zrogress --spinner");
+            const current_time = @bitCast(u64, std.time.milliTimestamp());
+            const spinner: Spinner = spinners.get("dotsWindows").?;
+            const frame = @divFloor(current_time, spinner.interval) % spinner.frames.len;
+            try out.writeAll(spinner.frames[frame]);
         },
         .bar => {
             return reportError(ai, cfg.kind_index, "TODO support bar");
