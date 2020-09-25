@@ -2,6 +2,9 @@ const std = @import("std");
 const help = @import("main.zig");
 const ArgsIter = help.ArgsIter;
 const reportError = help.reportError;
+const spinners_file = @import("spinners.zig");
+const Spinner = spinners_file.Spinner;
+const spinners = spinners_file.spinners;
 
 pub const main = help.anyMain(exec);
 
@@ -14,31 +17,15 @@ const Percentage = struct {
     // or just don't do this and use a float because it's easier
 };
 
-// usage: progressbar 70 / 100 "-" "-" --transition (set_color black)
-//        progressbar 12% --chars [ " " "▏" "▎" "▍" "▌" "▋" "▊" "▉" "█" ]
-//        progressbar 10 --load --chars ['⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏' ]
-//        progressbar 10 --load --preset dots
-//        progressbar 70% --chars [ " " "╴" "─" ]
-// add some from here https://jsfiddle.net/sindresorhus/2eLtsbey/embedded/result/ like dotswindows and material as a different name maybe idk
-// https://github.com/sindresorhus/cli-spinners/blob/HEAD/spinners.json
-// for progressbar, the first arg should be the speed or something. zrogress can decide what frame to put based on system time.
-//     zrogress --spinner
-//     zrogress 25%
-//     zrogress 25% --preset bar
-//     zrogress 25% --chars [ " " "▏" "▎" "▍" "▌" "▋" "▊" "▉" "█" ]
-
-const Preset = enum { default, bar };
 const Config = struct {
     parsing_args: bool = true,
     demo: bool = false,
-    preset: Preset = .default,
+    preset: Spinner = spinners.get("dotsWindows").?,
     _: []const Positional = &[_]Positional{},
 };
 const Positional = struct { text: []const u8, pos: usize };
 
-// there should be two, `z progress` and `z spinner` instead of `z progress --spinner`. TODO.
 pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
-    const cmd_idx = ai.index;
     var cfg = Config{};
     var positionals = std.ArrayList(Positional).init(alloc);
     while (ai.next()) |arg| {
@@ -59,5 +46,17 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     }
     cfg._ = positionals.toOwnedSlice();
 
-    return reportError(ai, cmd_idx, "TODO support bar");
+    if (cfg._.len > 0) return reportError(ai, cfg._[0].pos, "usage eg: spinner");
+    while (true) {
+        const current_time = @bitCast(u64, std.time.milliTimestamp());
+        const spinner: Spinner = spinners.get("dotsWindows").?;
+        const frame = @divFloor(current_time, spinner.interval) % spinner.frames.len;
+        const thisframe = spinner.frames[frame];
+        try out.writeAll(thisframe);
+        if (cfg.demo) {
+            const delay_time_ns = (spinner.interval - (current_time - (@divFloor(current_time, spinner.interval) * spinner.interval))) * std.time.ns_per_ms;
+            std.time.sleep(delay_time_ns);
+            for (help.range(thisframe.len)) |_| try out.writeAll("\x1b[D");
+        } else break;
+    }
 }

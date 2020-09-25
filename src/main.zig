@@ -94,6 +94,7 @@ pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
 const Programs = struct {
     echo: @import("zcho.zig"),
     progress: @import("zrogress.zig"),
+    spinner: @import("zpinner.zig"),
     clreol: ClrEol,
     @"--help": HelpPage,
 };
