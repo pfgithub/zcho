@@ -170,3 +170,17 @@ pub const main = anyMain(struct {
         } else return reportError(ai, ai.index, "bad program name. check --help.");
     }
 }.mainfn);
+
+fn testReadNumber(args: []const []const u8, expected: ?[]const u8) void {
+    var ai = ArgsIter{ .args = args };
+    const valu = (ai.readValue(ai.next() orelse @panic("fail"), "--number") catch @panic("fail"));
+    if (valu) |v| if (expected) |e| std.testing.expectEqualStrings(v, e) else @panic("fail") //
+    else if (expected) |e| @panic("fail") else {}
+}
+
+test "args iter" {
+    testReadNumber(&[_][]const u8{ "--number", "2" }, "2");
+    testReadNumber(&[_][]const u8{"--number=2"}, "2");
+    testReadNumber(&[_][]const u8{"--something-else"}, null);
+}
+// testpanic "" { testReadNumber(…) } // would be useful to have

@@ -107,8 +107,8 @@ fn printProgress(out: anytype, preset: Progress, width_chars: u16, raw_progress:
 
     for (range(width_chars)) |_, i| {
         const value = i * step;
-        if (value + step > progress) {
-            if (value > progress) {
+        if (value + step >= progress) {
+            if (value >= progress) {
                 try out.writeAll(preset[0]);
             } else {
                 const stage = progress - value;
@@ -121,6 +121,22 @@ fn printProgress(out: anytype, preset: Progress, width_chars: u16, raw_progress:
     }
 }
 
+fn testPrintProgress(preset: Progress, width_chars: u16, raw_progress: u16, raw_max: u16, expected: []const u8) !void {
+    const alloc = std.testing.allocator;
+    var al = std.ArrayList(u8).init(alloc);
+    defer al.deinit();
+    const out = al.writer();
+    try printProgress(out, preset, width_chars, raw_progress, raw_max);
+    std.testing.expectEqualStrings(expected, al.items);
+}
+
 test "progress" {
     // test .{.width = 20, .max = 100, .progress = 5} == "         "… eg
+    try testPrintProgress(&[_][]const u8{ "0", "1", "2" }, 1, 0, 2, "0");
+    try testPrintProgress(&[_][]const u8{ "0", "1", "2" }, 1, 1, 2, "1");
+    try testPrintProgress(&[_][]const u8{ "0", "1", "2" }, 1, 2, 2, "2");
+
+    try testPrintProgress(&[_][]const u8{ "0", "1", "2" }, 2, 0, 2, "00");
+    try testPrintProgress(&[_][]const u8{ "0", "1", "2" }, 2, 1, 2, "20");
+    try testPrintProgress(&[_][]const u8{ "0", "1", "2" }, 2, 2, 2, "22");
 }
