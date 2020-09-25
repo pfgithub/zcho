@@ -7,8 +7,23 @@ const std = @import("std");
 
 pub const Spinner = struct { frames: []const []const u8, interval: u64 };
 
+fn CustomStringMap(a: anytype, b: anytype) type {
+    const csm = std.ComptimeStringMap(a, b);
+    return struct {
+        pub const has = csm.has;
+        pub const get = csm.get;
+        pub const keys = blk: {
+            var res: []const []const u8 = &[_][]const u8{};
+            for (b) |c| {
+                res = res ++ &[_][]const u8{c[0]};
+            }
+            break :blk res;
+        };
+    };
+}
+
 // zig fmt: off
-pub const spinners = std.ComptimeStringMap(Spinner, .{
+pub const spinners = CustomStringMap(Spinner, .{
     .{ "arc",                 .{ .frames = &[_][]const u8{ "◜ ", "◠ ", " ◝", " ◞", "◡ ", "◟ " }, .interval = 100 } },
     .{ "arrow",               .{ .frames = &[_][]const u8{ "←", "↖", "↑", "↗", "→", "↘", "↓", "↙" }, .interval = 100 } },
     .{ "arrow2",              .{ .frames = &[_][]const u8{ "⬆️ ", "↗️ ", "➡️ ", "↘️ ", "⬇️ ", "↙️ ", "⬅️ ", "↖️ " }, .interval = 80 } },
