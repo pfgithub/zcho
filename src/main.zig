@@ -93,18 +93,25 @@ pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
 const Programs = struct {
     zcho: @import("zcho.zig"),
     zrogress: @import("zrogress.zig"),
+    @"--help": HelpPage,
+};
+
+const HelpPage = struct {
+    fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void {
+        try out.writeAll("Usage:\n");
+        try out.writeAll("    z [progname] [args...]\n");
+        try out.writeAll("Programs:\n");
+        inline for (@typeInfo(Programs).Struct.fields) |field| {
+            try out.writeAll("    " ++ field.name ++ (if (@hasDecl(field.field_type, "shortdesc")) (" - " ++ field.field_type.shortdesc) else "") ++ "\n");
+        }
+    }
+    const shortdesc = "show this page";
 };
 
 pub const main = anyMain(struct {
     fn mainfn(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void {
         const progname = ai.next() orelse {
-            try out.writeAll("Usage:\n");
-            try out.writeAll("    z [progname] [args...]\n");
-            try out.writeAll("Programs:\n");
-            inline for (@typeInfo(Programs).Struct.fields) |field| {
-                try out.writeAll("    " ++ field.name ++ "\n");
-            }
-            return;
+            return HelpPage.exec(alloc, ai, out);
         };
         inline for (@typeInfo(Programs).Struct.fields) |field| {
             if (std.mem.eql(u8, field.name, progname)) {
