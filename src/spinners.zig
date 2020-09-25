@@ -9,7 +9,7 @@ pub const Spinner = struct { frames: []const []const u8, interval: u64 };
 
 // zig fmt: off
 pub const spinners = std.ComptimeStringMap(Spinner, .{
-    .{ "arc",                 .{ .frames = &[_][]const u8{ "◜", "◠", "◝", "◞", "◡", "◟" }, .interval = 100 } },
+    .{ "arc",                 .{ .frames = &[_][]const u8{ "◜ ", "◠ ", " ◝", " ◞", "◡ ", "◟ " }, .interval = 100 } },
     .{ "arrow",               .{ .frames = &[_][]const u8{ "←", "↖", "↑", "↗", "→", "↘", "↓", "↙" }, .interval = 100 } },
     .{ "arrow2",              .{ .frames = &[_][]const u8{ "⬆️ ", "↗️ ", "➡️ ", "↘️ ", "⬇️ ", "↙️ ", "⬅️ ", "↖️ " }, .interval = 80 } },
     .{ "arrow3",              .{ .frames = &[_][]const u8{ "▹▹▹▹▹", "▸▹▹▹▹", "▹▸▹▹▹", "▹▹▸▹▹", "▹▹▹▸▹", "▹▹▹▹▸" }, .interval = 120 } },

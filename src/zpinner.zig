@@ -38,6 +38,11 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
                 cfg.demo = true;
                 continue;
             }
+            if (std.mem.eql(u8, arg, "--preset")) {
+                const presetname = ai.next() orelse return ai.err("Expected preset name");
+                cfg.preset = spinners.get(presetname) orelse return ai.err("Invalid preset name. List of presets in --list-presets");
+                continue;
+            }
             if (std.mem.startsWith(u8, arg, "-")) {
                 return help.reportError(ai, ai.index, "Bad arg. See --help");
             }
@@ -49,14 +54,15 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     if (cfg._.len > 0) return reportError(ai, cfg._[0].pos, "usage eg: spinner");
     while (true) {
         const current_time = @bitCast(u64, std.time.milliTimestamp());
-        const spinner: Spinner = spinners.get("dotsWindows").?;
+        const spinner = &cfg.preset;
         const frame = @divFloor(current_time, spinner.interval) % spinner.frames.len;
         const thisframe = spinner.frames[frame];
         try out.writeAll(thisframe);
         if (cfg.demo) {
             const delay_time_ns = (spinner.interval - (current_time - (@divFloor(current_time, spinner.interval) * spinner.interval))) * std.time.ns_per_ms;
             std.time.sleep(delay_time_ns);
-            for (help.range(thisframe.len)) |_| try out.writeAll("\x1b[D");
+            var view = (std.unicode.Utf8View.init(thisframe) catch unreachable).iterator();
+            while (view.nextCodepoint()) |_| try out.writeAll("\x1b[D");
         } else break;
     }
 }

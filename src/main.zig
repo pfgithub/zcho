@@ -48,6 +48,9 @@ pub const ArgsIter = struct {
         defer ai.index += 1;
         return ai.args[ai.index];
     }
+    pub fn err(ai: *ArgsIter, msg: []const u8) ReportedError {
+        return reportError(ai, ai.index, msg);
+    }
 };
 
 pub fn range(max: usize) []const void {
