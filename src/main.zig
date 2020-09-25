@@ -32,9 +32,10 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
             try out.writeAll(arg);
             len += unicodeLen(arg);
         } else {
-            if (i + 1 == idx) try out.writeAll(" \x1b[31m") //
-            else try out.writeAll(" \x1b[36m");
-            try out.writeAll(arg);
+            try out.writeAll(" \x1b[36m");
+            if (ai.subindex > 0) try out.writeAll(arg[0..std.math.min(ai.subindex, arg.len)]);
+            if (i + 1 == idx) try out.writeAll("\x1b[31m");
+            if (ai.subindex < arg.len) try out.writeAll(arg[ai.subindex..]);
             len += unicodeLen(arg);
             if (arg.len == ai.subindex) {
                 try out.writeAll("\x1b[90m" ++ missing_here);
