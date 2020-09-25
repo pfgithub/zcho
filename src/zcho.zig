@@ -1,9 +1,10 @@
 const std = @import("std");
 const help = @import("main.zig");
+const ArgsIter = help.ArgsIter;
 
 pub const main = help.anyMain(exec);
 
-pub fn exec(alloc: *std.mem.Allocator, args: []const []const u8, out_unbuffered: anytype) !void {
+pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out_unbuffered: anytype) !void {
     var buffered_out_stream = std.io.bufferedWriter(out_unbuffered);
     const out = buffered_out_stream.writer();
 
@@ -16,7 +17,7 @@ pub fn exec(alloc: *std.mem.Allocator, args: []const []const u8, out_unbuffered:
     } = .{};
     var first = true;
 
-    for (args[1..]) |arg, i| {
+    while (ai.next()) |arg| {
         if (opts.options) ifblk: {
             if (arg.len < 2) {
                 opts.options = false;

@@ -1,15 +1,12 @@
 const Builder = @import("std").build.Builder;
 
-const Command = enum { zcho, zrogress };
-
 pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
 
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("zcho", "src/zcho.zig");
+    const exe = b.addExecutable("z", "src/main.zig");
     exe.setTarget(target);
-    exe.addBuildOption(Command, "command", .zcho);
     exe.setBuildMode(mode);
     exe.install();
 

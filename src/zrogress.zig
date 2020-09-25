@@ -1,5 +1,7 @@
 const std = @import("std");
 const help = @import("main.zig");
+const ArgsIter = help.ArgsIter;
+const reportError = help.reportError;
 
 pub const main = help.anyMain(exec);
 
@@ -29,22 +31,39 @@ const Preset = enum { default, bar };
 const Config = struct {
     parsing_args: bool = true,
     kind: enum { bar, spinner } = .bar,
+    kind_index: usize = 0,
     demo: bool = false,
     preset: Preset = .default,
+    _: []const []const u8 = &[_][]const u8{},
 };
 
-pub fn exec(alloc: *std.mem.Allocator, args: []const []const u8, out: anytype) !void {
-    var ai = help.ArgsIter{ .args = args };
+pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     var cfg = Config{};
+    var positionals = std.ArrayList([]const u8).init(alloc);
     while (ai.next()) |arg| {
         if (cfg.parsing_args) {
             if (std.mem.eql(u8, arg, "--")) {
                 cfg.parsing_args = false;
                 continue;
             }
+            if(std.mem.eql(u8, arg, "--spinner")) {
+                cfg.kind = .spinner;
+                cfg.kind_index = ai.index;
+            }
             if (std.mem.startsWith(u8, arg, "-")) {
-                return help.reportError(ai, "Bad arg. See --help");
+                return help.reportError(ai, ai.index, "Bad arg. See --help");
             }
         }
+        try positionals.append(arg);
+    }
+    cfg._ = positionals.toOwnedSlice();
+    
+    switch(cfg.kind) {
+        .spinner => {
+            return reportError(ai, cfg.kind_index, "TODO support spinner");
+        },
+        .bar => {
+            return reportError(ai, cfg.kind_index, "TODO support bar");
+        },
     }
 }
