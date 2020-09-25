@@ -5,6 +5,13 @@ pub fn reportError(ai: *ArgsIter, idx: usize, msg: []const u8) ReportedError {
     printReportErrMsg(ai, idx, msg) catch return ReportedError.ReportedError;
     return ReportedError.ReportedError;
 }
+pub fn unicodeLen(text: []const u8) usize {
+    var view = (std.unicode.Utf8View.init(text) catch return text.len).iterator();
+    var res: usize = 0;
+    while (view.nextCodepoint()) |_| res += 1;
+    return res;
+}
+const missing_here = "[missing]";
 fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
     // idx - 1 is the ai.args[i] that it is referring to
     // if idx is 0, it is not referring to any specific arg
@@ -13,8 +20,8 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
     try out.writeAll(msg);
     try out.writeAll("\n");
 
-    var len: usize = 0;
-    var arrow_pos: usize = undefined;
+    var len: usize = 0; // TODO unicode
+    var arrow_pos: ?usize = null;
 
     for (ai.args) |arg, i| {
         if (i + 1 == idx) arrow_pos = len;
@@ -23,19 +30,27 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
             try out.writeAll("\x1b[1m\x1b[97m");
 
             try out.writeAll(arg);
-            len += arg.len;
+            len += unicodeLen(arg);
         } else {
             if (i + 1 == idx) try out.writeAll(" \x1b[31m") //
             else try out.writeAll(" \x1b[36m");
             try out.writeAll(arg);
-            len += arg.len;
+            len += unicodeLen(arg);
+            if (arg.len == ai.subindex) {
+                try out.writeAll("\x1b[90m" ++ missing_here);
+                len += missing_here.len;
+            }
+        }
+        len += 1;
+        if (i + 1 == ai.args.len and arrow_pos == null) {
+            try out.writeAll(" \x1b[90m" ++ missing_here);
         }
         try out.writeAll("\x1b(B\x1b[m");
-        len += 1;
     }
     try out.writeAll("\n");
 
-    if (idx != 0) for (range(arrow_pos)) |_| try out.writeAll(" ");
+    if (idx != 0) for (range(arrow_pos orelse len)) |_| try out.writeAll(" ");
+    for (range(ai.subindex)) |_| try out.writeAll(" ");
     try out.writeAll("\x1b[1m\x1b[92m^\x1b(B\x1b[m");
     try out.writeAll("\n");
 }
@@ -43,8 +58,13 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
 pub const ArgsIter = struct {
     args: []const []const u8,
     index: usize = 0,
+    subindex: usize = 0,
     pub fn next(ai: *ArgsIter) ?[]const u8 {
-        if (ai.index >= ai.args.len) return null;
+        ai.subindex = 0;
+        if (ai.index >= ai.args.len) {
+            if (ai.index == ai.args.len) ai.index += 1;
+            return null;
+        }
         defer ai.index += 1;
         return ai.args[ai.index];
     }

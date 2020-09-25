@@ -5,6 +5,7 @@ const reportError = help.reportError;
 const spinners_file = @import("spinners.zig");
 const Spinner = spinners_file.Spinner;
 const spinners = spinners_file.spinners;
+const range = help.range;
 
 pub const main = help.anyMain(exec);
 
@@ -25,6 +26,30 @@ const Config = struct {
 };
 const Positional = struct { text: []const u8, pos: usize };
 
+const helppage =
+    \\Usage: spinner [options]
+    \\Options:
+    \\    --demo: demo the spinner
+    \\    --preset [preset]: use a preset
+    \\    --list-presets: list presets. use with --demo to demo.
+    \\    --speed [ms]: use a custom speed
+    \\    --custom { …[pieces] }: use a custom spinner
+;
+
+/// readArgOneValue(u8, arg, "--preset") catch return ai.err("Expected preset name")
+fn readArgOneValue(arg: []const u8, ai: *ArgsIter, comptime expcdt: []const u8) !?[]const u8 {
+    if (std.mem.eql(u8, arg, expcdt)) {
+        return ai.next() orelse return error.ExpectedValue;
+    }
+    if (std.mem.startsWith(u8, arg, expcdt ++ "=")) {
+        ai.subindex = expcdt.len + 1;
+        const v = arg[expcdt.len + 1 ..];
+        if (v.len == 0) return error.ExpectedValue;
+        return v;
+    }
+    return null;
+}
+
 pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     var cfg = Config{};
     var positionals = std.ArrayList(Positional).init(alloc);
@@ -38,10 +63,13 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
                 cfg.demo = true;
                 continue;
             }
-            if (std.mem.eql(u8, arg, "--preset")) {
-                const presetname = ai.next() orelse return ai.err("Expected preset name");
+            if (readArgOneValue(arg, ai, "--preset") catch return ai.err("Expected preset name")) |presetname| {
                 cfg.preset = spinners.get(presetname) orelse return ai.err("Invalid preset name. List of presets in --list-presets");
                 continue;
+            }
+            if (std.mem.eql(u8, arg, "--help")) {
+                try out.writeAll(helppage);
+                return;
             }
             if (std.mem.startsWith(u8, arg, "-")) {
                 return help.reportError(ai, ai.index, "Bad arg. See --help");
@@ -61,8 +89,7 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
         if (cfg.demo) {
             const delay_time_ns = (spinner.interval - (current_time - (@divFloor(current_time, spinner.interval) * spinner.interval))) * std.time.ns_per_ms;
             std.time.sleep(delay_time_ns);
-            var view = (std.unicode.Utf8View.init(thisframe) catch unreachable).iterator();
-            while (view.nextCodepoint()) |_| try out.writeAll("\x1b[D");
+            for (range(help.unicodeLen(thisframe))) |_| try out.writeAll("\x1b[D");
         } else break;
     }
 }
