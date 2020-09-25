@@ -41,6 +41,7 @@ const Config = struct {
 };
 const Positional = struct { text: []const u8, pos: usize };
 
+// there should be two, `z progress` and `z spinner` instead of `z progress --spinner`. TODO.
 pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     var cfg = Config{};
     var positionals = std.ArrayList(Positional).init(alloc);
@@ -55,6 +56,10 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
                 cfg.kind_index = ai.index;
                 continue;
             }
+            if (std.mem.eql(u8, arg, "--demo")) {
+                cfg.demo = true;
+                continue;
+            }
             if (std.mem.startsWith(u8, arg, "-")) {
                 return help.reportError(ai, ai.index, "Bad arg. See --help");
             }
@@ -66,10 +71,17 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     switch (cfg.kind) {
         .spinner => {
             if (cfg._.len > 0) return reportError(ai, cfg._[0].pos, "usage eg: zrogress --spinner");
-            const current_time = @bitCast(u64, std.time.milliTimestamp());
-            const spinner: Spinner = spinners.get("dotsWindows").?;
-            const frame = @divFloor(current_time, spinner.interval) % spinner.frames.len;
-            try out.writeAll(spinner.frames[frame]);
+            while (true) {
+                const current_time = @bitCast(u64, std.time.milliTimestamp());
+                const spinner: Spinner = spinners.get("dotsWindows").?;
+                const frame = @divFloor(current_time, spinner.interval) % spinner.frames.len;
+                const thisframe = spinner.frames[frame];
+                try out.writeAll(thisframe);
+                if (cfg.demo) {
+                    std.time.sleep((current_time - (@divFloor(current_time, spinner.interval) * spinner.interval)) * std.time.ns_per_ms + 100);
+                    for (help.range(thisframe.len)) |_| try out.writeAll("\x1b[D");
+                } else break;
+            }
         },
         .bar => {
             return reportError(ai, cfg.kind_index, "TODO support bar");
