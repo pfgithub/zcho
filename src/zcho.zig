@@ -1,15 +1,10 @@
 const std = @import("std");
+const help = @import("main.zig");
 
-pub fn main() !u8 {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
+pub const main = help.anyMain(exec);
 
-    const allocator = &arena.allocator;
-    var args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-
-    const stdout_stream = std.io.getStdOut().writer();
-    var buffered_out_stream = std.io.bufferedWriter(stdout_stream);
+pub fn exec(alloc: *std.mem.Allocator, args: []const []const u8, out_unbuffered: anytype) !void {
+    var buffered_out_stream = std.io.bufferedWriter(out_unbuffered);
     const out = buffered_out_stream.writer();
 
     const EscapeMode = enum { raw, escape, unescape }; // urlencode option? might be neat
@@ -62,7 +57,6 @@ pub fn main() !u8 {
     }
     if (opts.newline) try out.writeByte('\n');
     try buffered_out_stream.flush();
-    return 0;
 }
 
 fn printHelp(out: anytype) @TypeOf(out).Error!void {
