@@ -71,17 +71,17 @@ pub const ArgsIter = struct {
         return ai.args[ai.index];
     }
     /// if(ai.readArgOneValue(arg, "--speed") orelse return ai.err("Expected number"))) |speed|
-    pub fn readValue(ai: *ArgsIter, arg: []const u8, comptime expcdt: []const u8) ??[]const u8 {
+    pub fn readValue(ai: *ArgsIter, arg: []const u8, comptime expcdt: []const u8) !?[]const u8 {
         if (std.mem.eql(u8, arg, expcdt)) {
-            return @as(?[]const u8, ai.next() orelse return null);
+            return ai.next() orelse return error.NoValue;
         }
         if (std.mem.startsWith(u8, arg, expcdt ++ "=")) {
             ai.subindex = expcdt.len + 1;
             const v = arg[expcdt.len + 1 ..];
-            if (v.len == 0) return null;
-            return @as(?[]const u8, v);
+            if (v.len == 0) return error.NoValue;
+            return v;
         }
-        return @as(?[]const u8, null);
+        return null;
     }
     pub fn err(ai: *ArgsIter, msg: []const u8) ReportedError {
         return reportError(ai, ai.index, msg);

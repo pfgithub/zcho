@@ -77,11 +77,11 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
                 cfg.demo = true;
                 continue;
             }
-            if (ai.readValue(arg, "--speed") orelse return ai.err("Expected number")) |speedms| {
+            if (ai.readValue(arg, "--speed") catch return ai.err("Expected number")) |speedms| {
                 cfg.preset_speed_override = std.fmt.parseInt(u32, speedms, 10) catch return ai.err("Invalid number. Expected speed in ms.");
                 continue;
             }
-            if (ai.readValue(arg, "--preset") orelse return ai.err("Expected preset name")) |presetname| {
+            if (ai.readValue(arg, "--preset") catch return ai.err("Expected preset name")) |presetname| {
                 cfg.preset = spinners.get(presetname) orelse return ai.err("Invalid preset name. List of presets in --list-presets");
                 continue;
             }

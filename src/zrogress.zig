@@ -11,13 +11,6 @@ pub const main = help.anyMain(exec);
 
 // progressbar 24.8% "_" "=" {width: , direction: ltr}
 
-const Percentage = struct {
-    data: u64,
-    max: u64,
-    // base 10 "float"
-    // or just don't do this and use a float because it's easier
-};
-
 // usage: progressbar 70 / 100 "-" "-" --transition (set_color black)
 //        progressbar 12% --chars [ " " "▏" "▎" "▍" "▌" "▋" "▊" "▉" "█" ]
 //        progressbar 10 --load --chars ['⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏' ]
@@ -65,13 +58,18 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     }
     cfg._ = positionals.toOwnedSlice();
 
+    // ok what to do:
+    // support 25% (:: 25 / 100)
+    // support 25 / 100 (:: 25 / 100)
+    // support 0.25 / 1 (:: 0.25 / 1)
+
     var progress: u16 = 25;
     var max: u16 = 200;
     while (true) {
         try printProgress(out, cfg.preset, cfg.width, progress, max);
         if (cfg.demo) {
             std.time.sleep(50 * std.time.ns_per_ms);
-            progress = @intCast(u16, (progress + @as(u32, @divFloor(max, 200))) % max);
+            progress = @intCast(u16, (progress + @as(u32, std.math.max(@divFloor(max, 200), 1))) % max);
             for (range(cfg.width)) |_| try out.writeAll("\x1b[D");
         } else break;
     }
