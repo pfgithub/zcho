@@ -38,20 +38,6 @@ const helppage =
     \\    --custom { …[pieces] }: use a custom spinner
 ;
 
-/// readArgOneValue(u8, arg, "--preset") catch return ai.err("Expected preset name")
-fn readArgOneValue(arg: []const u8, ai: *ArgsIter, comptime expcdt: []const u8) !?[]const u8 {
-    if (std.mem.eql(u8, arg, expcdt)) {
-        return ai.next() orelse return error.ExpectedValue;
-    }
-    if (std.mem.startsWith(u8, arg, expcdt ++ "=")) {
-        ai.subindex = expcdt.len + 1;
-        const v = arg[expcdt.len + 1 ..];
-        if (v.len == 0) return error.ExpectedValue;
-        return v;
-    }
-    return null;
-}
-
 // fn readArray should read from `{` to `}`. oh wait it needs to be able to escape things. uuh.
 // eg --custom=[1 2 3]
 // eg --custom [1 2 3]
@@ -91,11 +77,11 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
                 cfg.demo = true;
                 continue;
             }
-            if (readArgOneValue(arg, ai, "--speed") catch return ai.err("Expected number")) |speedms| {
+            if (ai.readValue(arg, "--speed") orelse return ai.err("Expected number")) |speedms| {
                 cfg.preset_speed_override = std.fmt.parseInt(u32, speedms, 10) catch return ai.err("Invalid number. Expected speed in ms.");
                 continue;
             }
-            if (readArgOneValue(arg, ai, "--preset") catch return ai.err("Expected preset name")) |presetname| {
+            if (ai.readValue(arg, "--preset") orelse return ai.err("Expected preset name")) |presetname| {
                 cfg.preset = spinners.get(presetname) orelse return ai.err("Invalid preset name. List of presets in --list-presets");
                 continue;
             }

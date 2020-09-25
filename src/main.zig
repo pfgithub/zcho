@@ -44,6 +44,7 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
         }
         len += 1;
         if (i + 1 == ai.args.len and arrow_pos == null) {
+            try out.writeAll("\x1b(B\x1b[m");
             try out.writeAll(" \x1b[90m" ++ missing_here);
         }
         try out.writeAll("\x1b(B\x1b[m");
@@ -68,6 +69,19 @@ pub const ArgsIter = struct {
         }
         defer ai.index += 1;
         return ai.args[ai.index];
+    }
+    /// if(ai.readArgOneValue(arg, "--speed") orelse return ai.err("Expected number"))) |speed|
+    pub fn readValue(ai: *ArgsIter, arg: []const u8, comptime expcdt: []const u8) ??[]const u8 {
+        if (std.mem.eql(u8, arg, expcdt)) {
+            return @as(?[]const u8, ai.next() orelse return null);
+        }
+        if (std.mem.startsWith(u8, arg, expcdt ++ "=")) {
+            ai.subindex = expcdt.len + 1;
+            const v = arg[expcdt.len + 1 ..];
+            if (v.len == 0) return null;
+            return @as(?[]const u8, v);
+        }
+        return @as(?[]const u8, null);
     }
     pub fn err(ai: *ArgsIter, msg: []const u8) ReportedError {
         return reportError(ai, ai.index, msg);
@@ -145,7 +159,8 @@ const HelpPage = struct {
 pub const main = anyMain(struct {
     fn mainfn(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void {
         const progname = ai.next() orelse {
-            return HelpPage.exec(alloc, ai, out);
+            try HelpPage.exec(alloc, ai, out);
+            return ai.err("Missing program name.");
         };
         inline for (@typeInfo(Programs).Struct.fields) |field| {
             if (std.mem.eql(u8, field.name, progname)) {
