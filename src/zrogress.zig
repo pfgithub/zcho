@@ -31,6 +31,7 @@ const Config = struct {
     parsing_args: bool = true,
     demo: bool = false,
     width: u16 = 20,
+    todo: enum { normal, list_presets } = .normal,
     preset: Progress = presets.get("smooth").?,
     _: []const Positional = &[_]Positional{},
 };
@@ -46,6 +47,14 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
                 cfg.parsing_args = false;
                 continue;
             }
+            if (ai.readValue(arg, "--preset") catch return ai.err("Expected preset name")) |presetname| {
+                cfg.preset = presets.get(presetname) orelse return ai.err("Invalid preset name. List of presets in --list-presets");
+                continue;
+            }
+            if (std.mem.eql(u8, arg, "--list-presets")) {
+                cfg.todo = .list_presets;
+                continue;
+            }
             if (std.mem.eql(u8, arg, "--demo")) {
                 cfg.demo = true;
                 continue;
@@ -58,6 +67,22 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     }
     cfg._ = positionals.toOwnedSlice();
 
+    switch (cfg.todo) {
+        .list_presets => {
+            for (presets.keys) |key, i| {
+                if (cfg.demo) {
+                    try out.writeAll("[");
+                    try printProgress(out, presets.get(key).?, 18, 25, 100);
+                    try out.writeAll("] (25%)  --preset=");
+                }
+                try out.writeAll(key);
+                try out.writeAll("\n");
+            }
+            return;
+        },
+        .normal => {},
+    }
+
     // ok what to do:
     // support 25% (:: 25 / 100)
     // support 25 / 100 (:: 25 / 100)
@@ -69,7 +94,7 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
         try printProgress(out, cfg.preset, cfg.width, progress, max);
         if (cfg.demo) {
             std.time.sleep(50 * std.time.ns_per_ms);
-            progress = @intCast(u16, (progress + @as(u32, std.math.max(@divFloor(max, 200), 1))) % max);
+            progress = @intCast(u16, (progress + @as(u32, std.math.max(@divFloor(max, 50), 1))) % max);
             for (range(cfg.width)) |_| try out.writeAll("\x1b[D");
         } else break;
     }

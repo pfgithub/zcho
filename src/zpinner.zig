@@ -47,6 +47,14 @@ const helppage =
 // uuh idk
 // we need to use `[`/`]` or `(`/`)` because fish doesn't work with `{`/`}`
 
+// what if z spinner --exec sleep 10
+// and it would draw the spinner while sleep 10 was running
+// or even better if zigsh had something for that
+// whilerunning sleep 10
+//    tput <-- idk
+//    z spinner
+// end
+
 // to make a better --list-presets --demo,
 //   enter fullscreen
 //   support scrolling
