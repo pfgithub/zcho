@@ -52,6 +52,13 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
                 cfg.preset = presets.get(presetname) orelse return ai.err("Invalid preset name. List of presets in --list-presets");
                 continue;
             }
+            if (ai.readValue(arg, "--width") catch return ai.err("Expected width value")) |widthstr| {
+                cfg.width = std.fmt.parseInt(u16, widthstr, 10) catch |e| switch (e) {
+                    error.Overflow => return ai.err("Maximum width is {std.math.maxInt(u16)}"),
+                    error.InvalidCharacter => return ai.err("Expected a number"),
+                };
+                continue;
+            }
             if (std.mem.eql(u8, arg, "--list-presets")) {
                 cfg.todo = .list_presets;
                 continue;
