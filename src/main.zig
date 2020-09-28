@@ -1,8 +1,8 @@
 const std = @import("std");
 
 const ReportedError = error{ReportedError};
-pub fn reportError(ai: *ArgsIter, idx: usize, msg: []const u8) ReportedError {
-    printReportErrMsg(ai, idx, msg) catch return ReportedError.ReportedError;
+pub fn reportError(ai: *ArgsIter, idx: usize, subidx: usize, msg: []const u8) ReportedError {
+    printReportErrMsg(ai, idx, subidx, msg) catch return ReportedError.ReportedError;
     return ReportedError.ReportedError;
 }
 pub fn unicodeLen(text: []const u8) usize {
@@ -12,7 +12,7 @@ pub fn unicodeLen(text: []const u8) usize {
     return res;
 }
 const missing_here = "[missing]";
-fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
+fn printReportErrMsg(ai: *ArgsIter, idx: usize, subidx: usize, msg: []const u8) !void {
     // idx - 1 is the ai.args[i] that it is referring to
     // if idx is 0, it is not referring to any specific arg
     const out = std.io.getStdErr().writer();
@@ -33,11 +33,11 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
             len += unicodeLen(arg);
         } else {
             try out.writeAll(" \x1b[36m");
-            if (ai.subindex > 0) try out.writeAll(arg[0..std.math.min(ai.subindex, arg.len)]);
+            if (subidx > 0) try out.writeAll(arg[0..std.math.min(subidx, arg.len)]);
             if (i + 1 == idx) try out.writeAll("\x1b[31m");
-            if (ai.subindex < arg.len) try out.writeAll(arg[ai.subindex..]);
+            if (subidx < arg.len) try out.writeAll(arg[subidx..]);
             len += unicodeLen(arg);
-            if (arg.len == ai.subindex) {
+            if (arg.len == subidx) {
                 try out.writeAll("\x1b[90m" ++ missing_here);
                 len += missing_here.len;
             }
@@ -52,7 +52,7 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, msg: []const u8) !void {
     try out.writeAll("\n");
 
     if (idx != 0) for (range(arrow_pos orelse len)) |_| try out.writeAll(" ");
-    for (range(ai.subindex)) |_| try out.writeAll(" ");
+    for (range(subidx)) |_| try out.writeAll(" ");
     try out.writeAll("\x1b[1m\x1b[92m^\x1b(B\x1b[m");
     try out.writeAll("\n");
 }
@@ -84,7 +84,7 @@ pub const ArgsIter = struct {
         return null;
     }
     pub fn err(ai: *ArgsIter, msg: []const u8) ReportedError {
-        return reportError(ai, ai.index, msg);
+        return reportError(ai, ai.index, ai.subindex, msg);
     }
 };
 
@@ -139,7 +139,7 @@ const Programs = struct {
 
 const ClrEol = struct {
     fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void {
-        if (ai.next()) |arg| return reportError(ai, ai.index, "Args not allowed");
+        if (ai.next()) |arg| return ai.err("Args not allowed");
         try out.writeAll("\x1b[K");
     }
     const shortdesc = "same as `tput el`";
@@ -167,7 +167,7 @@ pub const main = anyMain(struct {
                 try field.field_type.exec(alloc, ai, out);
                 break;
             }
-        } else return reportError(ai, ai.index, "bad program name. check --help.");
+        } else return ai.err("bad program name. check --help.");
     }
 }.mainfn);
 

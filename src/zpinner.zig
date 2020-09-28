@@ -102,7 +102,7 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
                 return;
             }
             if (std.mem.startsWith(u8, arg, "-")) {
-                return help.reportError(ai, ai.index, "Bad arg. See --help");
+                return ai.err("Bad arg. See --help");
             }
         }
         try positionals.append(.{ .text = arg, .pos = ai.index });
@@ -118,7 +118,7 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
         .normal => {},
     }
 
-    if (cfg._.len > 0) return reportError(ai, cfg._[0].pos, "usage eg: spinner");
+    if (cfg._.len > 0) return reportError(ai, cfg._[0].pos, 0, "usage eg: spinner");
     while (true) {
         const spin = getFrame(cfg.preset);
         try out.writeAll(spin.frame);

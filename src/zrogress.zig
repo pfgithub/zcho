@@ -36,6 +36,7 @@ const Config = struct {
     _: []const Positional = &[_]Positional{},
 };
 const Positional = struct { text: []const u8, pos: usize };
+const PMax = struct { progress: u16, max: u16 };
 
 pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
     const cmd_idx = ai.index;
@@ -60,20 +61,54 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
                 continue;
             }
             if (std.mem.startsWith(u8, arg, "-")) {
-                return help.reportError(ai, ai.index, "Bad arg. See --help");
+                return help.reportError(ai, ai.index, 0, "Bad arg. See --help");
             }
         }
         try positionals.append(.{ .text = arg, .pos = ai.index });
     }
     cfg._ = positionals.toOwnedSlice();
 
+    const p_max: ?PMax = switch (cfg._.len) {
+        0 => null,
+        1 => blk: {
+            // expect percentage.
+            // maybe in the future support 1/2 or 1/ 2 or something? probably not, 1 / 2 is fine
+            const parg = cfg._[0];
+            if (!std.mem.endsWith(u8, parg.text, "%")) return reportError(ai, parg.pos, parg.text.len, "Expected 25% or something. see --help");
+            const number = std.fmt.parseFloat(f64, parg.text[0 .. parg.text.len - 1]) catch |e| switch (e) {
+                error.InvalidCharacter => return reportError(ai, parg.pos, 0, "This is not a number. see --help"),
+            };
+            const umax = std.math.maxInt(u16);
+            var fval = number * umax / 100;
+            if (fval > umax) fval = std.math.maxInt(u16) //
+            else if (fval < 0) fval = 0;
+            break :blk PMax{ .progress = @floatToInt(u16, fval), .max = umax };
+        },
+        3 => blk: {
+            if (!std.mem.eql(u8, "/", cfg._[1].text)) return reportError(ai, cfg._[1].pos, 0, "Expected eg 1 / 2. See --help");
+            const left = std.fmt.parseInt(u16, cfg._[0].text, 10) catch |e| switch (e) {
+                error.InvalidCharacter => return reportError(ai, cfg._[0].pos, 0, "This is not a number."),
+                error.Overflow => return reportError(ai, cfg._[0].pos, 0, "Number too big. Max is {std.math.maxInt(u16)}"),
+            };
+            const right = std.fmt.parseInt(u16, cfg._[2].text, 10) catch |e| switch (e) {
+                error.InvalidCharacter => return reportError(ai, cfg._[2].pos, 0, "This is not a number."),
+                error.Overflow => return reportError(ai, cfg._[2].pos, 0, "Number too big. Max is {std.math.maxInt(u16)}"),
+            };
+            break :blk PMax{ .progress = left, .max = right };
+        },
+        else => {
+            return reportError(ai, cfg._[cfg._.len - 1].pos, 0, "Expected 1 / 2 or 25% or something. see --help");
+        },
+    };
+
     switch (cfg.todo) {
         .list_presets => {
+            const pmx = p_max orelse PMax{ .progress = 23, .max = 100 };
             for (presets.keys) |key, i| {
                 if (cfg.demo) {
                     try out.writeAll("[");
-                    try printProgress(out, presets.get(key).?, 18, 25, 100);
-                    try out.writeAll("] (25%)  --preset=");
+                    try printProgress(out, presets.get(key).?, cfg.width, pmx.progress, pmx.max);
+                    try out.writeAll("]  --preset=");
                 }
                 try out.writeAll(key);
                 try out.writeAll("\n");
@@ -82,14 +117,18 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
         },
         .normal => {},
     }
+    const pmx = p_max orelse {
+        if (cfg._.len > 0) unreachable; // I think this should get reported
+        return ai.err("Expected progress, eg 25 / 100 or 25%. See --help");
+    };
 
     // ok what to do:
     // support 25% (:: 25 / 100)
     // support 25 / 100 (:: 25 / 100)
     // support 0.25 / 1 (:: 0.25 / 1)
 
-    var progress: u16 = 25;
-    var max: u16 = 200;
+    var progress: u16 = pmx.progress;
+    var max: u16 = pmx.max;
     while (true) {
         try printProgress(out, cfg.preset, cfg.width, progress, max);
         if (cfg.demo) {
@@ -101,8 +140,8 @@ pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
 }
 
 fn printProgress(out: anytype, preset: Progress, width_chars: u16, raw_progress: u16, raw_max: u16) @TypeOf(out).Error!void {
-    const progress: u32 = raw_progress * width_chars;
-    const max: u32 = raw_max * width_chars;
+    const progress: u32 = @as(u32, raw_progress) * width_chars;
+    const max: u32 = @as(u32, raw_max) * width_chars;
     const step = raw_max;
 
     for (range(width_chars)) |_, i| {
