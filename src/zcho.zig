@@ -4,7 +4,11 @@ const ArgsIter = help.ArgsIter;
 
 pub const main = help.anyMain(exec);
 
-pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out_unbuffered: anytype) !void {
+pub fn exec(exec_args: help.MainFnArgs) !void {
+    const ai = exec_args.args_iter;
+    const alloc = exec_args.arena_allocator;
+    const out_unbuffered = std.io.getStdOut().writer();
+    
     var buffered_out_stream = std.io.bufferedWriter(out_unbuffered);
     const out = buffered_out_stream.writer();
 

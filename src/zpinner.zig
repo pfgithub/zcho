@@ -72,7 +72,11 @@ fn listPresets(out: anytype, demo: bool) @TypeOf(out).Error!void {
     }
 }
 
-pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
+pub fn exec(exec_args: help.MainFnArgs) !void {
+    const ai = exec_args.args_iter;
+    const alloc = exec_args.arena_allocator;
+    const out = std.io.getStdOut().writer();
+
     var cfg = Config{};
     var positionals = std.ArrayList(Positional).init(alloc);
     while (ai.next()) |arg| {

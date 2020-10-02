@@ -98,7 +98,15 @@ pub fn allocDupe(alloc: *Alloc, a: anytype) !*@TypeOf(a) {
     return c;
 }
 
-const MainFn = fn (alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void;
+const MainFn = fn (exec_args: MainFnArgs) anyerror!void;
+
+// in the future this will have more stuff
+pub const MainFnArgs = struct {
+    arena_allocator: *std.mem.Allocator,
+    allocator: *std.mem.Allocator,
+    // stdout_writer: // make your own
+    args_iter: *ArgsIter,
+};
 
 pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
     return struct {
@@ -114,12 +122,10 @@ pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
             const args = try std.process.argsAlloc(alloc);
             defer std.process.argsFree(alloc, args);
 
-            const os = std.io.getStdOut().outStream();
-
             var ai = ArgsIter{ .args = args };
             _ = ai.next() orelse @panic("no arg 0");
 
-            mainFn(alloc, &ai, os) catch |e| switch (e) {
+            mainFn(MainFnArgs{ .arena_allocator = alloc, .allocator = &gpalloc.allocator, .args_iter = &ai }) catch |e| switch (e) {
                 error.ReportedError => {},
                 else => return e,
             };
@@ -133,19 +139,28 @@ const Programs = struct {
     echo: @import("zcho.zig"),
     progress: @import("zrogress.zig"),
     spinner: @import("zpinner.zig"),
+    jsonexplorer: @import("jsonexplorer.zig"),
+    @"escape-sequence-debug": @import("escape_sequence_debug.zig"),
     clreol: ClrEol,
     @"--help": HelpPage,
 };
 
 const ClrEol = struct {
-    fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void {
+    fn exec(exec_args: MainFnArgs) anyerror!void {
+        const ai = exec_args.args_iter;
+        const out = std.io.getStdOut().writer();
+
         if (ai.next()) |arg| return ai.err("Args not allowed");
         try out.writeAll("\x1b[K");
     }
     const shortdesc = "same as `tput el`";
 };
 const HelpPage = struct {
-    fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void {
+    fn exec(exec_args: MainFnArgs) anyerror!void {
+        const ai = exec_args.args_iter;
+        const out = std.io.getStdOut().writer();
+
+        // if (ai.next()) |v| return ea.ai.err("Unexpected extra arg");
         try out.writeAll("Usage:\n");
         try out.writeAll("    z [progname] [args...]\n");
         try out.writeAll("Programs:\n");
@@ -157,14 +172,16 @@ const HelpPage = struct {
 };
 
 pub const main = anyMain(struct {
-    fn mainfn(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) anyerror!void {
+    fn mainfn(exec_args: MainFnArgs) anyerror!void {
+        const ai = exec_args.args_iter;
+
         const progname = ai.next() orelse {
-            try HelpPage.exec(alloc, ai, out);
+            try HelpPage.exec(exec_args);
             return ai.err("Missing program name.");
         };
         inline for (@typeInfo(Programs).Struct.fields) |field| {
             if (std.mem.eql(u8, field.name, progname)) {
-                try field.field_type.exec(alloc, ai, out);
+                try field.field_type.exec(exec_args);
                 break;
             }
         } else return ai.err("bad program name. check --help.");

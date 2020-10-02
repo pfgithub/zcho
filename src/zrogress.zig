@@ -38,7 +38,11 @@ const Config = struct {
 const Positional = struct { text: []const u8, pos: usize };
 const PMax = struct { progress: u16, max: u16 };
 
-pub fn exec(alloc: *std.mem.Allocator, ai: *ArgsIter, out: anytype) !void {
+pub fn exec(exec_args: help.MainFnArgs) !void {
+    const ai = exec_args.args_iter;
+    const alloc = exec_args.arena_allocator;
+    const out = std.io.getStdOut().writer();
+
     const cmd_idx = ai.index;
     var cfg = Config{};
     var positionals = std.ArrayList(Positional).init(alloc);
