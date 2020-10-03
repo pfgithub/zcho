@@ -29,9 +29,13 @@ fn tcflags(comptime itms: anytype) std.os.tcflag_t {
 }
 
 pub fn enterRawMode(stdin: std.fs.File) !std.os.termios {
+    // https://github.com/minierolls/termelot/blob/backend/termios/src/backend/termios.zig `fn makeRaw`
     const origTermios = try std.os.tcgetattr(stdin.handle);
     var termios = origTermios;
-    termios.lflag &= ~tcflags(.{ .ECHO, .ICANON, .ISIG, .IXON, .IEXTEN, .BRKINT, .INPCK, .ISTRIP, .CS8 });
+    termios.iflag &= ~tcflags(.{ .BRKINT, .INPCK, .ISTRIP }); // icrnl/ixon differentiates ctrl+j and ctrl+m but ctrl+m is still read the same as enter
+    // termios.oflag &= ~tcflags(.{.OPOST}); // requires printing \r\n rather than just \n
+    termios.cflag |= @as(std.os.tcflag_t, std.os.CS8);
+    termios.lflag &= ~tcflags(.{ .ECHO, .ICANON, .IEXTEN, .ISIG });
     try std.os.tcsetattr(stdin.handle, std.os.TCSA.FLUSH, termios);
     return origTermios;
 }

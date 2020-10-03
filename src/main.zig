@@ -6,10 +6,7 @@ pub fn reportError(ai: *ArgsIter, idx: usize, subidx: usize, msg: []const u8) Re
     return ReportedError.ReportedError;
 }
 pub fn unicodeLen(text: []const u8) usize {
-    var view = (std.unicode.Utf8View.init(text) catch return text.len).iterator();
-    var res: usize = 0;
-    while (view.nextCodepoint()) |_| res += 1;
-    return res;
+    return @import("lib/wcwidth.zig").wcswidth(text);
 }
 const missing_here = "[missing]";
 fn printReportErrMsg(ai: *ArgsIter, idx: usize, subidx: usize, msg: []const u8) !void {
@@ -140,6 +137,7 @@ const Programs = struct {
     progress: @import("zrogress.zig"),
     spinner: @import("zpinner.zig"),
     jsonexplorer: @import("jsonexplorer.zig"),
+    zigsh: @import("zigsh.zig"),
     @"escape-sequence-debug": @import("escape_sequence_debug.zig"),
     clreol: ClrEol,
     @"--help": HelpPage,
