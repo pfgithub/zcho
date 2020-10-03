@@ -85,6 +85,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
 const Prompt = struct {
     text: std.ArrayList(u8),
     cursor: usize,
+    has_written_prompt: bool = false,
     fn init(alloc: *std.mem.Allocator) Prompt {
         return Prompt{
             .text = std.ArrayList(u8).init(alloc),
@@ -99,6 +100,7 @@ const Prompt = struct {
     fn clear(prompt: *Prompt) void {
         prompt.text.shrinkRetainingCapacity(0);
         prompt.cursor = 0;
+        prompt.has_written_prompt = false;
     }
 
     const StopMode = enum { word, char, line };
@@ -155,10 +157,15 @@ const Prompt = struct {
 
     // maybe a seperate promptDisplay that tracks the current display state
     // and stuff? idk maybe not
-    fn updateDisplay(prompt: Prompt, out: anytype, show_hints: bool) !void {
-        try out.writeAll("\r");
-        try printPrompt(out);
-        try out.writeAll("\x1b7"); // tput sc
+    fn updateDisplay(prompt: *Prompt, out: anytype, show_hints: bool) !void {
+        if (prompt.has_written_prompt) {
+            try out.writeAll("\x1b8");
+        } else {
+            try out.writeAll("\r");
+            try printPrompt(out);
+            try out.writeAll("\x1b7"); // tput sc
+            prompt.has_written_prompt = true;
+        }
         try out.writeAll(prompt.text.items);
         try out.writeAll("\x1b[K");
         try out.writeAll("\x1b8"); // tput rc
