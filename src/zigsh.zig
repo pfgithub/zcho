@@ -39,22 +39,20 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
 
     try prompt.updateDisplay(out, true);
     while (cli.nextEvent(stdin) catch cli.Event{ .none = {} }) |ev| {
-        if (ev.is("ctrl+d")) break;
-        if (ev.is("ctrl+c")) {
+        if (ev.is("ctrl+d")) break //
+        else if (ev.is("ctrl+c")) {
             try out.writeAll("\x1b[7m^C\x1b(B\x1b[m\x1b[J\n"); // ^C(tput ed)
             prompt.clear();
-            try prompt.updateDisplay(out, true);
-            continue;
-        }
-        if (ev.is("enter")) {
+        } else if (ev.is("enter")) {
             try prompt.updateDisplay(out, false);
             prompt.clear();
             try out.writeAll("\n");
-            try prompt.updateDisplay(out, true);
-            continue;
-        }
-
-        switch (ev) {
+            // execute the command and wait for it to return
+        } else if (ev.is("home")) prompt.cursor = prompt.findStop(prompt.cursor, .left, .line) //
+        else if (ev.is("ctrl+a")) prompt.cursor = prompt.findStop(prompt.cursor, .left, .line) //
+        else if (ev.is("end")) prompt.cursor = prompt.findStop(prompt.cursor, .right, .line) //
+        else if (ev.is("ctrl+e")) prompt.cursor = prompt.findStop(prompt.cursor, .right, .line) //
+        else switch (ev) {
             .key => |kev| switch (kev.keycode) {
                 .character => |codepoint| {
                     // try command.writer().print("{u}", .{uc});
@@ -103,7 +101,7 @@ const Prompt = struct {
         prompt.cursor = 0;
     }
 
-    const StopMode = enum { word, char };
+    const StopMode = enum { word, char, line };
     fn findStop(prompt: *Prompt, from: usize, direction: enum { left, right }, mode: StopMode) usize {
         var i = from;
         while (switch (direction) {
@@ -122,6 +120,10 @@ const Prompt = struct {
                 .word => switch (char) {
                     'A'...'Z', 'a'...'z', '0'...'9' => {},
                     else => break,
+                },
+                .line => switch (char) {
+                    '\n' => break,
+                    else => {},
                 },
                 .char => break,
             } else if (char & 0b01000000 != 0) break; // utf-8 start character, 0b11xxxxxx

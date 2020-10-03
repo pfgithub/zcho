@@ -82,8 +82,10 @@ pub const Event = union(enum) {
         left,
         down,
         right,
-        insert,
+        insert, // ha turns out insert and delete are the same escape sequence
         tab,
+        home,
+        end,
     };
     const KeyModifiers = struct {
         ctrl: bool = false,
@@ -256,6 +258,18 @@ fn readInt(stream: anytype) !IntRetV {
 // TODO!!! instead of that use the escape sequence that tells the terminal to print on
 // size changes
 
+fn readNormalCharacter(char: u8, modifiers: Event.KeyModifiers) !Event {
+    switch (char) {
+        'A' => return Event{ .key = .{ .keycode = .up, .modifiers = modifiers } },
+        'B' => return Event{ .key = .{ .keycode = .down, .modifiers = modifiers } },
+        'C' => return Event{ .key = .{ .keycode = .right, .modifiers = modifiers } },
+        'D' => return Event{ .key = .{ .keycode = .left, .modifiers = modifiers } },
+        'H' => return Event{ .key = .{ .keycode = .home, .modifiers = modifiers } },
+        'F' => return Event{ .key = .{ .keycode = .end, .modifiers = modifiers } },
+        else => return error.UnsupportedEvent,
+    }
+}
+
 pub fn nextEvent(stdinf: std.fs.File) !?Event {
     const stdin = stdinf.reader();
 
@@ -286,13 +300,7 @@ pub fn nextEvent(stdinf: std.fs.File) !?Event {
                                     '6' => Event.KeyModifiers{ .ctrl = true, .shift = true },
                                     else => return error.UnsupportedEvent,
                                 };
-                                switch (stdin.readByte() catch return null) {
-                                    'A' => return Event{ .key = .{ .keycode = .up, .modifiers = modifiers } },
-                                    'B' => return Event{ .key = .{ .keycode = .down, .modifiers = modifiers } },
-                                    'C' => return Event{ .key = .{ .keycode = .right, .modifiers = modifiers } },
-                                    'D' => return Event{ .key = .{ .keycode = .left, .modifiers = modifiers } },
-                                    else => return error.UnsupportedEvent,
-                                }
+                                return try readNormalCharacter(stdin.readByte() catch return null, modifiers);
                             },
                             '3' => {
                                 if ((stdin.readByte() catch return null) != '5') return error.UnsupportedEvent;
@@ -303,10 +311,6 @@ pub fn nextEvent(stdinf: std.fs.File) !?Event {
                         },
                         else => return error.UnsupportedEvent,
                     },
-                    'A' => return Event.fromc("up"),
-                    'B' => return Event.fromc("down"),
-                    'D' => return Event.fromc("left"),
-                    'C' => return Event.fromc("right"),
                     'O' => return Event.blur,
                     'I' => return Event.focus,
                     '<' => {
@@ -366,7 +370,9 @@ pub fn nextEvent(stdinf: std.fs.File) !?Event {
                             },
                         };
                     },
-                    else => |chr| return error.UnsupportedEvent,
+                    else => |chr| {
+                        return try readNormalCharacter(chr, .{ .ctrl = false, .shift = false });
+                    },
                 },
                 else => |esch| return error.UnsupportedEvent,
             }
