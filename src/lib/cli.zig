@@ -85,11 +85,12 @@ pub const Event = union(enum) {
         insert,
         tab,
     };
+    const KeyModifiers = struct {
+        ctrl: bool = false,
+        shift: bool = false,
+    };
     const KeyEvent = struct {
-        modifiers: struct {
-            ctrl: bool = false,
-            shift: bool = false,
-        } = .{},
+        modifiers: KeyModifiers = .{},
         keycode: Keycode,
     };
     key: KeyEvent,
@@ -262,88 +263,110 @@ pub fn nextEvent(stdinf: std.fs.File) !?Event {
     switch (firstByte) {
         // ctrl+k, ctrl+m don't work
         // also ctrl+[ allows you to type bad stuff that panics rn
-        1...8, 11...26 => |ch| return Event{ .key = .{ .modifiers = .{ .ctrl = true }, .keycode = .{ .character = ch - 1 + 'a' } } },
+        1...7, 11...26 => |ch| return Event{ .key = .{ .modifiers = .{ .ctrl = true }, .keycode = .{ .character = ch - 1 + 'a' } } },
+        8 => return Event.fromc("ctrl+backspace"),
         '\t' => return Event{ .key = .{ .keycode = .tab } },
         '\x1b' => {
             switch (stdin.readByte() catch return null) {
-                '[' => {
-                    switch (stdin.readByte() catch return null) {
-                        '1'...'9' => |num| {
-                            // if next byte is 1-9, this is a urxvt mouse event
-                            // readInt(stdin, &[_]u8{num, byte})
-                            // and then the rest
-                            if ((stdin.readByte() catch return null) != '~') return error.UnsupportedEvent;
-                            switch (num) {
-                                '2' => return Event.fromc("insert"),
-                                '3' => return Event.fromc("delete"),
-                                else => return error.UnsupportedEvent,
-                            }
+                '[' => switch (stdin.readByte() catch return null) {
+                    // if next byte is 1-9, this is a urxvt mouse event
+                    // readInt(stdin, &[_]u8{num, byte})
+                    // and then the rest
+                    '1'...'9' => |num| switch (stdin.readByte() catch return null) {
+                        '~' => switch (num) {
+                            '2' => return Event.fromc("insert"),
+                            '3' => return Event.fromc("delete"),
+                            else => return error.UnsupportedEvent,
                         },
-                        'A' => return Event.fromc("up"),
-                        'B' => return Event.fromc("down"),
-                        'D' => return Event.fromc("left"),
-                        'C' => return Event.fromc("right"),
-                        'O' => return Event.blur,
-                        'I' => return Event.focus,
-                        '<' => {
-                            const MouseButtonData = packed struct {
-                                button: packed enum(u2) { left = 0, middle = 1, right = 2, none = 3 },
-                                shift: u1,
-                                alt: u1,
-                                ctrl: u1,
-                                move: u1,
-                                scroll: u1,
-                                unused: u1,
-                            };
-
-                            const b = readInt(stdin) catch return null;
-                            if (b.char != ';') return error.BadEscapeSequence;
-                            const x = readInt(stdin) catch return null;
-                            if (x.char != ';') return error.BadEscapeSequence;
-                            const y = readInt(stdin) catch return null;
-                            if (y.char != 'M' and y.char != 'm') return error.BadEscapeSequence;
-
-                            const data = @bitCast(MouseButtonData, @intCast(u8, b.val));
-
-                            if (y.char == 'm' and data.move == 1) return error.BadEscapeSequence; // "mouse is moving and released at the same time"
-
-                            if (data.scroll == 1)
-                                return Event{
-                                    .scroll = .{
-                                        .x = x.val - 1,
-                                        .y = y.val - 1,
-                                        .pixels = switch (data.button) {
-                                            .left => -3,
-                                            .middle => 3,
-                                            else => return error.BadScrollEvent,
-                                        },
-                                        .ctrl = data.ctrl == 1,
-                                        .alt = data.alt == 1,
-                                        .shift = data.shift == 1,
-                                    },
+                        ';' => switch (num) {
+                            '1' => {
+                                const modifiers = switch (stdin.readByte() catch return null) {
+                                    '2' => Event.KeyModifiers{ .ctrl = false, .shift = true },
+                                    '5' => Event.KeyModifiers{ .ctrl = true, .shift = false },
+                                    '6' => Event.KeyModifiers{ .ctrl = true, .shift = true },
+                                    else => return error.UnsupportedEvent,
                                 };
+                                switch (stdin.readByte() catch return null) {
+                                    'A' => return Event{ .key = .{ .keycode = .up, .modifiers = modifiers } },
+                                    'B' => return Event{ .key = .{ .keycode = .down, .modifiers = modifiers } },
+                                    'C' => return Event{ .key = .{ .keycode = .right, .modifiers = modifiers } },
+                                    'D' => return Event{ .key = .{ .keycode = .left, .modifiers = modifiers } },
+                                    else => return error.UnsupportedEvent,
+                                }
+                            },
+                            '3' => {
+                                if ((stdin.readByte() catch return null) != '5') return error.UnsupportedEvent;
+                                if ((stdin.readByte() catch return null) != '~') return error.UnsupportedEvent;
+                                return Event.fromc("ctrl+delete");
+                            },
+                            else => return error.UnsupportedEvent,
+                        },
+                        else => return error.UnsupportedEvent,
+                    },
+                    'A' => return Event.fromc("up"),
+                    'B' => return Event.fromc("down"),
+                    'D' => return Event.fromc("left"),
+                    'C' => return Event.fromc("right"),
+                    'O' => return Event.blur,
+                    'I' => return Event.focus,
+                    '<' => {
+                        const MouseButtonData = packed struct {
+                            button: packed enum(u2) { left = 0, middle = 1, right = 2, none = 3 },
+                            shift: u1,
+                            alt: u1,
+                            ctrl: u1,
+                            move: u1,
+                            scroll: u1,
+                            unused: u1,
+                        };
 
+                        const b = readInt(stdin) catch return null;
+                        if (b.char != ';') return error.BadEscapeSequence;
+                        const x = readInt(stdin) catch return null;
+                        if (x.char != ';') return error.BadEscapeSequence;
+                        const y = readInt(stdin) catch return null;
+                        if (y.char != 'M' and y.char != 'm') return error.BadEscapeSequence;
+
+                        const data = @bitCast(MouseButtonData, @intCast(u8, b.val));
+
+                        if (y.char == 'm' and data.move == 1) return error.BadEscapeSequence; // "mouse is moving and released at the same time"
+
+                        if (data.scroll == 1)
                             return Event{
-                                .mouse = .{
+                                .scroll = .{
                                     .x = x.val - 1,
                                     .y = y.val - 1,
-                                    .button = switch (data.button) {
-                                        .left => Event.MouseButton.left,
-                                        .middle => .middle,
-                                        .right => .right,
-                                        .none => .none,
+                                    .pixels = switch (data.button) {
+                                        .left => -3,
+                                        .middle => 3,
+                                        else => return error.BadScrollEvent,
                                     },
-                                    .direction = if (data.move == 1) Event.MouseDirection.move
-                                    //zig fmt
-                                    else if (y.char == 'm') Event.MouseDirection.up else .down,
                                     .ctrl = data.ctrl == 1,
                                     .alt = data.alt == 1,
                                     .shift = data.shift == 1,
                                 },
                             };
-                        },
-                        else => |chr| return error.UnsupportedEvent,
-                    }
+
+                        return Event{
+                            .mouse = .{
+                                .x = x.val - 1,
+                                .y = y.val - 1,
+                                .button = switch (data.button) {
+                                    .left => Event.MouseButton.left,
+                                    .middle => .middle,
+                                    .right => .right,
+                                    .none => .none,
+                                },
+                                .direction = if (data.move == 1) Event.MouseDirection.move
+                                //zig fmt
+                                else if (y.char == 'm') Event.MouseDirection.up else .down,
+                                .ctrl = data.ctrl == 1,
+                                .alt = data.alt == 1,
+                                .shift = data.shift == 1,
+                            },
+                        };
+                    },
+                    else => |chr| return error.UnsupportedEvent,
                 },
                 else => |esch| return error.UnsupportedEvent,
             }
