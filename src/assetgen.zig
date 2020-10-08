@@ -111,6 +111,7 @@ const Filters = struct {
     const @"-new" = .{ filterNew, "Create a new image" };
     const @"-print" = .{ filterPrint, "Print the image to the command line" };
     const @"-vertical-scroll" = .{ filterVerticalScroll, "Make the image scroll vertically" };
+    const @"-wave-function-collapse" = .{ filterWaveFunctionCollapse, "Wave function collapse (overlapping)" };
 };
 const FilterCtx = struct {
     ai: *ArgsIter,
@@ -124,9 +125,9 @@ const FilterCtx = struct {
 const helpHelp = "Print this message";
 fn filterHelp(fctx: *FilterCtx) !void {
     std.debug.warn("Usage:\n", .{});
-    std.debug.warn("    animate [filters]\n", .{});
+    std.debug.warn("    assetgen [filters]\n", .{});
     std.debug.warn("Example:\n", .{});
-    std.debug.warn("    animate -read in.png -resize 10x10 -write out.png\n", .{});
+    std.debug.warn("    assetgen -read in.png -resize 10x10 -write out.png\n", .{});
     std.debug.warn("Options:\n", .{});
     inline for (@typeInfo(Filters).Struct.decls) |decl| {
         std.debug.warn("    {}", .{decl.name});
@@ -177,6 +178,87 @@ fn filterVerticalScroll(fctx: *FilterCtx) !void {
     }
 
     fctx.setImage().* = outimg;
+}
+// -setvar @var1 -load image2.png -overlay @var1
+fn filterWaveFunctionCollapse(fctx: *FilterCtx) !void {
+    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -load image.png before this.");
+    const image = &fctx.image.?;
+
+    var pattern_width: usize = 3; // these don't change, this is just to simulate it not being comptime-known
+    var pattern_height: usize = 3;
+    const max_color_count = 64; // required for the packedintarray(max_color_count, u1)
+
+    var colors_array = [_]Color{undefined} ** max_color_count;
+    var colors: []Color = colors_array[0..0];
+    const ColorIndexInt = std.math.IntFittingRange(0, max_color_count);
+
+    for (range(image.h)) |_, y| {
+        flp: for (range(image.w)) |_, x| {
+            const color = image.get(x, y);
+            // r, g, b, a
+            for (colors) |col| if (std.meta.eql(col, color)) {
+                continue :flp;
+            };
+            colors.len += 1;
+            if (colors.len >= max_color_count) return fctx.ai.err("More than {} colors were used.");
+            colors[colors.len - 1] = color;
+        }
+    }
+
+    // Each element of this array represents a state of an NxN region in the output. A state of an NxN region is a superposition of NxN patterns
+    //   of the input with boolean coefficients
+    // wait how does that make sense
+
+    // ok yeah
+    // make an array of all the colors
+    // make an array of all the patterns
+    // keep the weights of the patterns (which are used more)
+    //
+    // ok so how "symmetry" worked in the original
+    // 1 is no symmetry, 2 is horizontal reflection
+    // that's kind of a little bit really dumb
+
+    var patterns = std.ArrayList(ColorIndexInt).init(fctx.alloc);
+    // to get pattern[i], get pattern[i + (pattern_width * pattern_height)]
+    const pattern_size = pattern_width * pattern_height;
+
+    for (range(image.h)) |_, y| {
+        flp: for (range(image.w)) |_, x| {
+            // since there is no addManyAsSlice
+            // TODO add addManyAsSlice/addManyAsSliceAssumeCapacity to the stdlib
+            // (here we are allocating rather than recreating addManyAsSlice because
+            //  idk why there was smoe reason it was better but I forgot
+            //  oh right to make sure patterns aren't duplicated and to increase weight
+            //  instead of duplication)
+            const added_slice = try fctx.alloc.alloc(ColorIndexInt, pattern_size);
+            for (range(pattern_width)) |_, py| {
+                for (range(pattern_height)) |_, px| {
+                    // in the future, we will load a 3x3 grid of tiles and use the center
+                    // one. this way, wrapping won't be needed.
+                    const pixel = image.get((x + px) % image.w, (y + py) % image.h);
+                    const color_index = for (colors) |col, i| {
+                        if (std.meta.eql(pixel, col)) break @intCast(ColorIndexInt, i); // won't fail
+                    } else unreachable;
+                    added_slice[py * pattern_height + px] = color_index;
+                }
+            }
+            // TODO symmetries? (be careful to not use an invalidated added_slice pointer)
+            for (range(patterns.items.len / pattern_size)) |_, pattern_index| {
+                const i = pattern_index * pattern_size;
+                if (std.mem.eql(ColorIndexInt, patterns.items[i .. i + pattern_size], added_slice)) continue :flp; // pattern already added
+            }
+            try patterns.appendSlice(added_slice);
+        }
+    }
+
+    // ok I think this isn't right
+    // it is supposed to be able to go leftup and downright instead of just downright
+    // and also it's like completely wrong idk
+
+    std.debug.warn("Unique color count: {}\n", .{colors.len});
+    std.debug.warn("Unique pattern count: {}\n", .{patterns.items.len / pattern_size});
+
+    // count all the pattern_width x pattern_width patterns (wrapping) (todo instead of wrapping, load a larger image)
 }
 
 pub const main = help.anyMain(exec);
