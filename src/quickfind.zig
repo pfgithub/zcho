@@ -33,7 +33,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     }
     cfg._ = positionals.toOwnedSlice();
 
-    if (cfg._.len == 0) return ai.reportError("Expected starting folder");
+    if (cfg._.len == 0) return ai.err("Expected starting folder");
     if (cfg._.len > 2) return help.reportError(ai, cfg._[1].pos, cfg._[2].epos, "Bad");
 
     const base_folder = try std.fs.cwd().openDir(cfg._[0].text, .{});
@@ -43,6 +43,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
 
     // while (true) {}
 }
+const Entry = struct { _todo: u1 };
 
 // breadth first find
 // scores where to search first based on:

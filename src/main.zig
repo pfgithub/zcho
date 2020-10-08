@@ -134,8 +134,8 @@ pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
 
 const Programs = struct {
     echo: @import("zcho.zig"),
-    progress: @import("zrogress.zig"),
-    spinner: @import("zpinner.zig"),
+    progress: @import("progress.zig"),
+    spinner: @import("spinner.zig"),
     jsonexplorer: @import("jsonexplorer.zig"),
     zigsh: @import("zigsh.zig"),
     @"escape-sequence-debug": @import("escape_sequence_debug.zig"),
