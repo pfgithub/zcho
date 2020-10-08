@@ -48,6 +48,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
             prompt.clear();
             try out.writeAll("\n");
             // execute the command and wait for it to return
+            // after it returns, \x1b[6n check the cursor position and if x != 0, print "⏎ \n"
         } else if (ev.is("home")) prompt.cursor = prompt.findStop(prompt.cursor, .left, .line) //
         else if (ev.is("ctrl+a")) prompt.cursor = prompt.findStop(prompt.cursor, .left, .line) //
         else if (ev.is("end")) prompt.cursor = prompt.findStop(prompt.cursor, .right, .line) //
@@ -81,6 +82,60 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
         try prompt.updateDisplay(out, true);
     }
 }
+
+const ArgsIter = struct {
+    const Arg = union(enum) {
+        flag: []const u8,
+        text: []const u8,
+    };
+    args: []Arg,
+    i: usize,
+};
+
+const ProgramOptions = struct {
+    request: enum { run, completion },
+    args: *ArgsIter,
+};
+
+const ProgramExitResult = union(enum) {
+    ran_program: struct {},
+    tab_completion: struct {},
+};
+
+fn demoProgram(args: ProgramOptions) ProgramExitResult {
+    const Config = struct {
+        parsing_args: bool,
+        _: []const []const u8,
+    };
+    var cfg = Config{};
+    var positionals = std.ArrayList(Positional).init(alloc);
+    while (ai.next()) |argitm| { // variables (eg ls $folder) are passed in differently
+        const arg = argitm.text;
+        if (!arg.variable and cfg.parsing_args and std.mem.startsWith(u8, arg, "-")) {
+            if (std.mem.eql(u8, arg, "--")) {
+                cfg.parsing_args = false;
+                continue;
+            }
+            if (ai.readValue(arg, "--raw") catch return ai.expect("[value]", "Expected value")) |rawv| {
+                try positionals.append(.{ .text = rawv, .pos = ai.index, .epos = ai.subindex });
+                continue;
+            }
+            if (std.mem.startsWith(u8, arg, "--help")) {
+                cfg.todo = .display_help; // stops parsing any other arguments in case there are errors
+                // ArgsIter will know this and be able to show that the args are unused with different coloring
+                break;
+            }
+            return ai.suggest(&[_][]const u8{ "-help", "-raw", "-" }, "Bad arg. See --help");
+        }
+        try positionals.append(.{ .text = arg, .pos = ai.index });
+    }
+    cfg._ = positionals.toOwnedSlice();
+}
+
+// TODO: terminfo I guess
+// https://github.com/ziglang/zig/pull/6150/files
+// would it be helpful to use \x1b[6n to check if the cursor is at the position we expect it
+// to be?
 
 const Prompt = struct {
     text: std.ArrayList(u8),
@@ -182,6 +237,3 @@ const Prompt = struct {
         try out.writeAll(" \x1b(B\x1b[m\x1b[38;2;51;51;51m\xee\x82\xb0 \x1b(B\x1b[m");
     }
 };
-
-// would it be helpful to use \x1b[6n to check if the cursor is at the position we expect it
-// to be?
