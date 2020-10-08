@@ -122,7 +122,7 @@ pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
             var ai = ArgsIter{ .args = args };
             _ = ai.next() orelse @panic("no arg 0");
 
-            mainFn(MainFnArgs{ .arena_allocator = alloc, .allocator = &gpalloc.allocator, .args_iter = &ai }) catch |e| switch (e) {
+            mainFn(MainFnArgs{ .arena_allocator = alloc, .allocator = &gpalloc.allocator, .args_iter = &ai }) catch |e| switch (@as(anyerror, e)) {
                 error.ReportedError => {},
                 else => return e,
             };
