@@ -1,4 +1,6 @@
 const std = @import("std");
+const help = @import("main.zig");
+const ArgsIter = help.ArgsIter;
 const c = @cImport({
     @cInclude("stb_image.h");
     @cInclude("stb_image_write.h");
@@ -104,14 +106,14 @@ fn range(max: usize) []const void {
 
 const Filters = struct {
     const @"--help" = .{ filterHelp, helpHelp };
-    const @"-read" = .{filterRead};
-    const @"-write" = .{filterWrite};
-    const @"-new" = .{filterNew};
-    const @"-print" = .{filterPrint};
-    const @"-vertical-scroll" = .{filterVerticalScroll};
+    const @"-read" = .{ filterRead, "Read a png file in" };
+    const @"-write" = .{ filterWrite, "Write to a png file" };
+    const @"-new" = .{ filterNew, "Create a new image" };
+    const @"-print" = .{ filterPrint, "Print the image to the command line" };
+    const @"-vertical-scroll" = .{ filterVerticalScroll, "Make the image scroll vertically" };
 };
 const FilterCtx = struct {
-    argsIter: std.process.ArgIterator,
+    ai: *ArgsIter,
     alloc: *std.mem.Allocator,
     image: ?Image,
     fn setImage(fctx: *FilterCtx) *?Image {
@@ -132,14 +134,14 @@ fn filterHelp(fctx: *FilterCtx) !void {
         if (@hasField(@TypeOf(fopts), "1")) std.debug.warn(": {}", .{fopts.@"1"});
         std.debug.warn("\n", .{});
     }
-    return error.Helped;
+    return error.ReportedError;
 }
 fn filterPrint(fctx: *FilterCtx) !void {
-    if (fctx.image == null) return error.NoImage;
+    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -read image.png before this.");
     printImage(fctx.image.?);
 }
 fn filterRead(fctx: *FilterCtx) !void {
-    const infile = fctx.argsIter.nextPosix() orelse return error.BadArgs;
+    const infile = fctx.ai.next() orelse return fctx.ai.err("Expected png file");
 
     if (fctx.image) |*img| img.deinit(); // maybe warn if the image is never used
     fctx.setImage().* = blk: {
@@ -149,8 +151,8 @@ fn filterRead(fctx: *FilterCtx) !void {
     };
 }
 fn filterWrite(fctx: *FilterCtx) !void {
-    if (fctx.image == null) return error.NoImage;
-    const filename = fctx.argsIter.nextPosix() orelse return error.BadArgs;
+    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -read image.png before this.");
+    const filename = fctx.ai.next() orelse return fctx.ai.err("Expected output file name");
 
     const outfile = try std.fs.cwd().createFile(filename, .{});
     defer outfile.close();
@@ -160,7 +162,7 @@ fn filterWrite(fctx: *FilterCtx) !void {
 // -new 10x10 -fill #FFF
 fn filterNew(fctx: *FilterCtx) !void {}
 fn filterVerticalScroll(fctx: *FilterCtx) !void {
-    if (fctx.image == null) return error.NoImage;
+    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -load image.png before this.");
     const img = &fctx.image.?;
     const alloc = fctx.alloc;
 
@@ -177,45 +179,58 @@ fn filterVerticalScroll(fctx: *FilterCtx) !void {
     fctx.setImage().* = outimg;
 }
 
-pub fn main() !void {
-    main_main() catch |e| switch (e) {
-        error.Helped => {},
-        else => return e,
-    };
-}
+pub const main = help.anyMain(exec);
 
-fn main_main() !void {
-    var gpalloc = std.heap.GeneralPurposeAllocator(.{}){};
-    defer std.testing.expect(!gpalloc.deinit());
-    const alloc = &gpalloc.allocator;
+const Config = struct {
+    parsing_args: bool = true,
+    _: []const Positional = &[_]Positional{},
+};
+const Positional = struct { text: []const u8, pos: usize, epos: usize = 0 };
 
-    // usage: animate -read in.png -print -vertical-scroll -write out.png
+pub fn exec(exec_args: help.MainFnArgs) !void {
+    const ai = exec_args.args_iter;
+    const alloc = exec_args.arena_allocator;
+    const out = std.io.getStdOut().writer();
 
     var fctx: FilterCtx = .{
-        .argsIter = std.process.ArgIterator.init(),
+        .ai = exec_args.args_iter,
         .alloc = alloc,
-        .image = undefined,
+        .image = null,
     };
     defer if (fctx.image) |*img| img.deinit();
 
-    _ = fctx.argsIter.nextPosix() orelse return error.BadArgs;
-
-    var oneIter = false;
-    whlp: while (fctx.argsIter.nextPosix()) |arg| {
-        oneIter = true;
-        inline for (@typeInfo(Filters).Struct.decls) |decl| {
-            if (std.mem.eql(u8, decl.name, arg)) {
-                try @field(Filters, decl.name)[0](&fctx);
-                continue :whlp;
+    var cfg = Config{};
+    var positionals = std.ArrayList(Positional).init(alloc);
+    var ran_one_filter = false;
+    whlp: while (ai.next()) |arg| {
+        if (cfg.parsing_args and std.mem.startsWith(u8, arg, "-")) {
+            if (std.mem.eql(u8, arg, "--")) {
+                cfg.parsing_args = false;
+                continue;
             }
+            if (ai.readValue(arg, "--raw") catch return ai.err("Expected value")) |rawv| {
+                try positionals.append(.{ .text = rawv, .pos = ai.index, .epos = ai.subindex });
+                continue;
+            }
+            inline for (@typeInfo(Filters).Struct.decls) |decl| {
+                if (std.mem.eql(u8, decl.name, arg)) {
+                    @field(Filters, decl.name)[0](&fctx) catch |e| switch (@as(anyerror, e)) {
+                        error.ReportedError => return e,
+                        else => {
+                            const erra = try std.fmt.allocPrint(alloc, "Got error: {}", .{e});
+                            return ai.err(erra);
+                        },
+                    };
+                    ran_one_filter = true;
+                    continue :whlp;
+                }
+            }
+            return ai.err("Bad arg. See --help");
         }
-        if (!std.mem.startsWith(u8, arg, "-")) {
-            std.debug.warn("Did you mean -read/-write {}", .{arg});
-        } else {
-            std.debug.warn("Unknown arg: {}\n", .{arg});
-        }
-        return error.BadArgs;
+        return ai.err("Bad arg. See --help");
+        // try positionals.append(.{ .text = arg, .pos = ai.index });
     }
+    cfg._ = positionals.toOwnedSlice();
 
-    if (!oneIter) try filterHelp(&fctx);
+    if (!ran_one_filter) try filterHelp(&fctx);
 }
