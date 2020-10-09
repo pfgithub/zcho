@@ -180,6 +180,7 @@ fn filterVerticalScroll(fctx: *FilterCtx) !void {
     fctx.setImage().* = outimg;
 }
 // -setvar @var1 -load image2.png -overlay @var1
+// -wave-function-collapse [ @var1 ( -load b.png ) ( -load c.png ) ]
 fn filterWaveFunctionCollapse(fctx: *FilterCtx) !void {
     if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -load image.png before this.");
     const image = &fctx.image.?;
