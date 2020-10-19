@@ -83,53 +83,118 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     }
 }
 
+const Mark = enum { flag, positional, operator };
 const ArgsIter = struct {
-    const Arg = union(enum) {
-        flag: []const u8,
+    const Arg = struct {
+        raw: bool,
         text: []const u8,
+        kind: Mark,
     };
     args: []Arg,
-    i: usize,
+
+    index: usize = 0,
+    subindex: usize = 0,
+
+    /// examples
+    /// ```
+    /// |argone argtwo          returns argone and advances to argtwo
+    /// argone argtwo |         returns null, does not advcance
+    /// arg=|one argtwo         returns one and advances to argtwo
+    /// arg=| argtwo            returns null, advances to argtwo. question: should this return "" instead? null is a bit misleading
+    /// ```
+    pub fn next(ai: *ArgsIter) ?Positional {
+        defer ai.subindex = 0;
+        if (ai.index >= ai.args.len) {
+            if (ai.index == ai.args.len) ai.index += 1; // ??¿¿
+            return null;
+        }
+        defer ai.index += 1;
+        const argv = ai.args[ai.index];
+        if (ai.subindex == argv.len) return null; // a=| b :: calling next returns null and advances to start of b. kind of strange I guess.
+        return Positional{ .text = argv.text[ai.subindex..], .raw = argv.raw, .index = ai.index, .subindex = 0 };
+    }
+};
+const Positional = struct {
+    text: []const u8,
+    index: usize,
+    subindex: usize,
+    raw: bool,
+    // this might be useless but what if readValue just read `abc=` or `abc` and then it was
+    // up to you to do ai.next() and ai.next() did stuff with subindex. anyway not necessary
+    // or useful.
+    // ok I'm doing that
+    fn readValue(me: Positional, ai: *ArgsIter, expected: []const u8) ?void {
+        if (std.mem.eql(u8, arg, expcdt)) {
+            return;
+        }
+        if (arg.len >= expected.len + 1 and std.mem.startsWith(u8, arg, expcdt) and arg[expected.len] == '=') {
+            ai.subindex = expcdt.len + 1;
+            return v;
+        }
+        return null;
+    }
+    fn eql(me: Positional, expcdt: []const u8) bool {
+        return std.mem.eql(u8, me.text, expcdt);
+    }
 };
 
 const ProgramOptions = struct {
     request: enum { run, completion },
     args: *ArgsIter,
+    execute: bool,
+    const ok = ProgramExitResult{ .ok = {} };
+
+    fn printRaw(text: []const u8) !void {
+        // TODO
+    }
 };
 
+// rather than using this exit result, argsiter will be mutated
+// that will be used to determine stuff
 const ProgramExitResult = union(enum) {
-    ran_program: struct {},
-    tab_completion: struct {},
+    ok,
 };
 
-fn demoProgram(args: ProgramOptions) ProgramExitResult {
+fn demoProgram(opts: ProgramOptions) !ProgramExitResult {
     const Config = struct {
         parsing_args: bool,
         _: []const []const u8,
     };
     var cfg = Config{};
     var positionals = std.ArrayList(Positional).init(alloc);
-    while (ai.next()) |argitm| { // variables (eg ls $folder) are passed in differently
-        const arg = argitm.text;
-        if (!arg.variable and cfg.parsing_args and std.mem.startsWith(u8, arg, "-")) {
+    while (opts.ai.next()) |ar| {
+        const arg = ar.text;
+        if (!ar.raw and cfg.parsing_args and std.mem.startsWith(u8, arg, "-")) {
+            ai.mark(.flag);
             if (std.mem.eql(u8, arg, "--")) {
                 cfg.parsing_args = false;
                 continue;
             }
-            if (ai.readValue(arg, "--raw") catch return ai.expect("[value]", "Expected value")) |rawv| {
+            if (ar.readValue(ai, "--raw")) {
+                const rawv = ai.next() orelse return ai.expect("[value]", "Expected value");
                 try positionals.append(.{ .text = rawv, .pos = ai.index, .epos = ai.subindex });
                 continue;
             }
-            if (std.mem.startsWith(u8, arg, "--help")) {
+            if (ar.eql("--help")) {
                 cfg.todo = .display_help; // stops parsing any other arguments in case there are errors
                 // ArgsIter will know this and be able to show that the args are unused with different coloring
                 break;
             }
-            return ai.suggest(&[_][]const u8{ "-help", "-raw", "-" }, "Bad arg. See --help");
+            return ai.suggest(&[_][]const u8{ "--help", "--raw", "--" }, "Bad arg. See --help");
         }
+        ai.mark(.positional);
         try positionals.append(.{ .text = arg, .pos = ai.index });
     }
     cfg._ = positionals.toOwnedSlice();
+
+    if (!opts.execute) return .ok;
+
+    try opts.printRaw("Demo program!");
+    // opts.updateFmt() is equivalent to \rmessage\x1b[???idk
+    // opts.appendFmt()
+    // opts.appendRaw()
+
+    return ok;
 }
 
 // TODO: terminfo I guess
@@ -221,6 +286,10 @@ const Prompt = struct {
             try out.writeAll("\x1b7"); // tput sc
             prompt.has_written_prompt = true;
         }
+        // pack prompt.text.items into an argsiter
+        // and then print it unpacked somehow
+        // (slightly difficult because eg if you put "quotes" it needs to print them still)
+        // so remember the source text? idk what to do
         try out.writeAll(prompt.text.items);
         try out.writeAll("\x1b[K");
         try out.writeAll("\x1b8"); // tput rc
