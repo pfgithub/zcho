@@ -32,3 +32,7 @@
 //                                      //
 
 // it could even be a gui maybe where you can click the stage all button idk
+
+pub fn main() !void {
+    @panic("TODO");
+}

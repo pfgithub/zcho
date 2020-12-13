@@ -1,6 +1,5 @@
 const std = @import("std");
 const help = @import("main.zig");
-const ArgsIter = help.ArgsIter;
 
 pub const main = help.anyMain(exec);
 
@@ -8,7 +7,7 @@ const Config = struct {
     parsing_args: bool = true,
     _: []const Positional = &[_]Positional{},
 };
-const Positional = struct { text: []const u8, pos: usize, epos: usize = 0 };
+const Positional = help.Positional;
 
 pub fn exec(exec_args: help.MainFnArgs) !void {
     const ai = exec_args.args_iter;
@@ -18,23 +17,20 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     var cfg = Config{};
     var positionals = std.ArrayList(Positional).init(alloc);
     while (ai.next()) |arg| {
-        if (cfg.parsing_args and std.mem.startsWith(u8, arg, "-")) {
-            if (std.mem.eql(u8, arg, "--")) {
+        if (cfg.parsing_args and std.mem.startsWith(u8, arg.text, "-")) {
+            if (std.mem.eql(u8, arg.text, "--")) {
                 cfg.parsing_args = false;
                 continue;
             }
             if (ai.readValue(arg, "--raw") catch return ai.err("Expected value")) |rawv| {
-                try positionals.append(.{ .text = rawv, .pos = ai.index, .epos = ai.subindex });
+                try positionals.append(arg);
                 continue;
             }
             return ai.err("Bad arg. See --help");
         }
-        try positionals.append(.{ .text = arg, .pos = ai.index });
+        try positionals.append(arg);
     }
-    cfg._ = positionals.toOwnedSlice();
-
-    if (cfg._.len == 0) return ai.err("Expected starting folder");
-    if (cfg._.len > 2) return help.reportError(ai, cfg._[1].pos, cfg._[2].epos, "Bad");
+    cfg._ = positionals.toOwnedSlice(); // TODO delete this and do a positionaliter instead
 
     const base_folder = try std.fs.cwd().openDir(cfg._[0].text, .{});
 

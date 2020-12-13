@@ -3,3 +3,7 @@
 // rand d6
 // rand d20
 // rand d2/3
+
+pub fn main() !void {
+    @panic("TODO");
+}

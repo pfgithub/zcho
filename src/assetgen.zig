@@ -1,6 +1,6 @@
 const std = @import("std");
 const help = @import("main.zig");
-const ArgsIter = help.ArgsIter;
+const ArgsIter = help.PositionalIter;
 const c = @cImport({
     @cInclude("stb_image.h");
     @cInclude("stb_image_write.h");
@@ -146,7 +146,7 @@ fn filterRead(fctx: *FilterCtx) !void {
 
     if (fctx.image) |*img| img.deinit(); // maybe warn if the image is never used
     fctx.setImage().* = blk: {
-        const imgfile = try std.fs.cwd().readFileAlloc(fctx.alloc, infile, std.math.maxInt(usize));
+        const imgfile = try std.fs.cwd().readFileAlloc(fctx.alloc, infile.text, std.math.maxInt(usize));
         defer fctx.alloc.free(imgfile);
         break :blk try Image.load(imgfile);
     };
@@ -155,7 +155,7 @@ fn filterWrite(fctx: *FilterCtx) !void {
     if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -read image.png before this.");
     const filename = fctx.ai.next() orelse return fctx.ai.err("Expected output file name");
 
-    const outfile = try std.fs.cwd().createFile(filename, .{});
+    const outfile = try std.fs.cwd().createFile(filename.text, .{});
     defer outfile.close();
 
     try fctx.image.?.write(outfile.writer());
@@ -286,17 +286,13 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     var positionals = std.ArrayList(Positional).init(alloc);
     var ran_one_filter = false;
     whlp: while (ai.next()) |arg| {
-        if (cfg.parsing_args and std.mem.startsWith(u8, arg, "-")) {
-            if (std.mem.eql(u8, arg, "--")) {
+        if (cfg.parsing_args and std.mem.startsWith(u8, arg.text, "-")) {
+            if (std.mem.eql(u8, arg.text, "--")) {
                 cfg.parsing_args = false;
                 continue;
             }
-            if (ai.readValue(arg, "--raw") catch return ai.err("Expected value")) |rawv| {
-                try positionals.append(.{ .text = rawv, .pos = ai.index, .epos = ai.subindex });
-                continue;
-            }
             inline for (@typeInfo(Filters).Struct.decls) |decl| {
-                if (std.mem.eql(u8, decl.name, arg)) {
+                if (std.mem.eql(u8, decl.name, arg.text)) {
                     @field(Filters, decl.name)[0](&fctx) catch |e| switch (@as(anyerror, e)) {
                         error.ReportedError => return e,
                         else => {
@@ -311,7 +307,6 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
             return ai.err("Bad arg. See --help");
         }
         return ai.err("Bad arg. See --help");
-        // try positionals.append(.{ .text = arg, .pos = ai.index });
     }
     cfg._ = positionals.toOwnedSlice();
 
