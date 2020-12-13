@@ -104,7 +104,16 @@ pub const PositionalIter = struct {
         return null;
     }
     pub fn err(pi: *PositionalIter, msg: []const u8) ReportedError {
-        return reportError(pi, pi.index, pi.offset, msg);
+        // TODO determine index and offset based on the positionals in here
+        if (pi.args.len == 0) {
+            return reportError(pi, pi.report_info.len + 1, 0, msg);
+        }
+        if (pi.index - 1 >= pi.args.len) {
+            return reportError(pi, pi.report_info.len + 1, 0, msg);
+        }
+        if (pi.index == 0) unreachable; // I think something is supposed to be called first idk
+        const value_here = pi.args[pi.index - 1];
+        return reportError(pi, value_here.index, value_here.offset + pi.offset, msg);
     }
 };
 

@@ -6,7 +6,7 @@ const Positional = help.Positional;
 pub const main = help.anyMain(exec);
 
 const Config = struct {
-    parsing_args: bool = true,
+    flag_enabled: bool = false,
 };
 
 pub fn exec(exec_args: help.MainFnArgs) !void {
@@ -15,11 +15,12 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     const out = std.io.getStdOut().writer();
 
     var cfg = Config{};
+    var parsing_args = true;
     var positionals = std.ArrayList(Positional).init(alloc);
     while (ai.next()) |arg| {
-        if (cfg.parsing_args and std.mem.startsWith(u8, arg.text, "-")) {
+        if (parsing_args and std.mem.startsWith(u8, arg.text, "-")) {
             if (std.mem.eql(u8, arg.text, "--")) {
-                cfg.parsing_args = false;
+                parsing_args = false;
                 continue;
             }
             if (ai.readValue(arg, "--raw") catch return ai.err("Expected value")) |rawv| {
@@ -37,5 +38,5 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     var oi = PositionalIter{ .args = positionals.toOwnedSlice(), .report_info = ai.report_info };
     if (oi.next()) |nxt| return nxt.err(&oi, "Too many arguments");
 
-    try out.writeAll("TODO code here.");
+    try out.writeAll("TODO code here.\n");
 }
