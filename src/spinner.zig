@@ -1,6 +1,5 @@
 const std = @import("std");
 const help = @import("main.zig");
-const ArgsIter = help.ArgsIter;
 const reportError = help.reportError;
 const spinners_file = @import("lib/spinners.zig");
 const Spinner = spinners_file.Spinner;
@@ -26,7 +25,8 @@ const Config = struct {
     todo: enum { normal, list_presets } = .normal,
     _: []const Positional = &[_]Positional{},
 };
-const Positional = struct { text: []const u8, pos: usize };
+const Positional = help.Positional;
+const PositionalIter = help.PositionalIter;
 
 const helppage =
     \\Usage: spinner [options]
@@ -81,35 +81,35 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     var positionals = std.ArrayList(Positional).init(alloc);
     while (ai.next()) |arg| {
         if (cfg.parsing_args) {
-            if (std.mem.eql(u8, arg, "--")) {
+            if (std.mem.eql(u8, arg.text, "--")) {
                 cfg.parsing_args = false;
                 continue;
             }
-            if (std.mem.eql(u8, arg, "--demo")) {
+            if (std.mem.eql(u8, arg.text, "--demo")) {
                 cfg.demo = true;
                 continue;
             }
             if (ai.readValue(arg, "--speed") catch return ai.err("Expected number")) |speedms| {
-                cfg.preset_speed_override = std.fmt.parseInt(u32, speedms, 10) catch return ai.err("Invalid number. Expected speed in ms.");
+                cfg.preset_speed_override = std.fmt.parseInt(u32, speedms.text, 10) catch return speedms.err(ai, "Invalid number. Expected speed in ms.");
                 continue;
             }
             if (ai.readValue(arg, "--preset") catch return ai.err("Expected preset name")) |presetname| {
-                cfg.preset = spinners.get(presetname) orelse return ai.err("Invalid preset name. List of presets in --list-presets");
+                cfg.preset = spinners.get(presetname.text) orelse return presetname.err(ai, "Invalid preset name. List of presets in --list-presets");
                 continue;
             }
-            if (std.mem.eql(u8, arg, "--list-presets")) {
+            if (std.mem.eql(u8, arg.text, "--list-presets")) {
                 cfg.todo = .list_presets;
                 continue;
             }
-            if (std.mem.eql(u8, arg, "--help")) {
+            if (std.mem.eql(u8, arg.text, "--help")) {
                 try out.writeAll(helppage);
                 return;
             }
-            if (std.mem.startsWith(u8, arg, "-")) {
+            if (std.mem.startsWith(u8, arg.text, "-")) {
                 return ai.err("Bad arg. See --help");
             }
         }
-        try positionals.append(.{ .text = arg, .pos = ai.index });
+        try positionals.append(arg);
     }
     cfg._ = positionals.toOwnedSlice();
     if (cfg.preset_speed_override) |so| cfg.preset.interval = so;
@@ -122,7 +122,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
         .normal => {},
     }
 
-    if (cfg._.len > 0) return reportError(ai, cfg._[0].pos, 0, "usage eg: spinner");
+    if (cfg._.len > 0) return cfg._[0].err(ai, "usage eg: spinner");
     while (true) {
         const spin = getFrame(cfg.preset);
         try out.writeAll(spin.frame);

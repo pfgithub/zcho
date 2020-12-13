@@ -19,11 +19,11 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     var eventMode = false;
     while (ai.next()) |arg| {
         // std.debug.warn("ARG: {s}\n", .{arg});
-        if (std.mem.eql(u8, arg, "--mouse")) {
+        if (std.mem.eql(u8, arg.text, "--mouse")) {
             mouseMode = true;
             continue;
         }
-        if (std.mem.eql(u8, arg, "--event")) {
+        if (std.mem.eql(u8, arg.text, "--event")) {
             eventMode = true;
             continue;
         }

@@ -8,7 +8,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     const ai = exec_args.args_iter;
     const alloc = exec_args.arena_allocator;
     const out_unbuffered = std.io.getStdOut().writer();
-    
+
     var buffered_out_stream = std.io.bufferedWriter(out_unbuffered);
     const out = buffered_out_stream.writer();
 
@@ -23,30 +23,33 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
 
     while (ai.next()) |arg| {
         if (opts.options) ifblk: {
-            if (arg.len < 2) {
+            if (arg.text.len < 2) {
                 opts.options = false;
                 break :ifblk;
             }
-            if (arg[0] != '-') break :ifblk;
-            if(std.mem.eql(u8, arg, "--")) {
+            if (arg.text[0] != '-') break :ifblk;
+            if (std.mem.eql(u8, arg.text, "--")) {
                 opts.options = false;
                 continue;
             }
-            // if(std.mem.eql(u8, arg, "--print-mode"))
-            //    :: read next arg (not easy to do, requires making ArgIter)
-            // if(std.mem.startsWith(u8, arg, "--print-mode="))
-            //    :: same as above, but arg["--print-mode=".len..]
-            if(for(arg[1..]) |char| switch(char) {'e', 'E', 'p', 'n', 's', 'h' => {}, else => break true} else false) {
+            if (for (arg.text[1..]) |char| switch (char) {
+                'e', 'E', 'p', 'n', 's', 'h' => {},
+                else => break true,
+            }
+            else false) {
                 opts.options = false;
                 continue;
             }
-            for (arg[1..]) |char| switch (char) {
+            for (arg.text[1..]) |char| switch (char) {
                 'e' => opts.escape = .unescape,
                 'E' => opts.escape = .raw,
                 'p' => opts.escape = .escape,
                 'n' => opts.newline = false,
                 's' => opts.spaces = false,
-                'h' => {try printHelp(out); break;},
+                'h' => {
+                    try printHelp(out);
+                    break;
+                },
                 else => unreachable, // caught above
             };
             continue;
@@ -55,9 +58,9 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
         if (opts.spaces and !first) try out.writeByte(' ');
         first = false;
         switch (opts.escape) {
-            .escape => try writeEscape(out, arg),
-            .unescape => if (try writeUnescape(out, arg)) break,
-            .raw => try out.writeAll(arg),
+            .escape => try writeEscape(out, arg.text),
+            .unescape => if (try writeUnescape(out, arg.text)) break,
+            .raw => try out.writeAll(arg.text),
         }
     }
     if (opts.newline) try out.writeByte('\n');
@@ -101,7 +104,7 @@ const StringIter = struct {
         return si.peekByte();
     }
     fn peekByte(si: *StringIter) ?u8 {
-        if(si.idx < si.string.len) return si.string[si.idx];
+        if (si.idx < si.string.len) return si.string[si.idx];
         return null;
     }
 };
@@ -111,7 +114,7 @@ fn readNum(si: *StringIter, comptime max: usize, radix: u8) ?u8 {
     var buf = [1]u8{undefined} ** max;
     const valslice = blk: {
         var i: usize = 0;
-        while(i < max) : (i += 1) {
+        while (i < max) : (i += 1) {
             const dechar = si.peekByte() orelse break :blk buf[0..i];
             _ = std.fmt.charToDigit(dechar, radix) catch break :blk buf[0..i];
             buf[i] = si.nextByte().?;
@@ -124,7 +127,7 @@ fn readNum(si: *StringIter, comptime max: usize, radix: u8) ?u8 {
 
 fn writeUnescape(out: anytype, arg: []const u8) @TypeOf(out).Error!bool {
     var escape = false;
-    var si = StringIter{.string = arg};
+    var si = StringIter{ .string = arg };
     while (si.nextByte()) |char| {
         if (!escape and char == '\\') {
             escape = true;

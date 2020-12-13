@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const ReportedError = error{ReportedError};
-pub fn reportError(ai: *ArgsIter, idx: usize, subidx: usize, msg: []const u8) ReportedError {
+pub fn reportError(ai: *PositionalIter, idx: usize, subidx: usize, msg: []const u8) ReportedError {
     printReportErrMsg(ai, idx, subidx, msg) catch return ReportedError.ReportedError;
     return ReportedError.ReportedError;
 }
@@ -9,8 +9,8 @@ pub fn unicodeLen(text: []const u8) usize {
     return @import("lib/wcwidth.zig").wcswidth(text);
 }
 const missing_here = "[missing]";
-fn printReportErrMsg(ai: *ArgsIter, idx: usize, subidx: usize, msg: []const u8) !void {
-    // idx - 1 is the ai.args[i] that it is referring to
+fn printReportErrMsg(ai: *PositionalIter, idx: usize, subidx: usize, msg: []const u8) !void {
+    // idx - 1 is the ai.report_info[i] that it is referring to
     // if idx is 0, it is not referring to any specific arg
     const out = std.io.getStdErr().writer();
     try out.writeAll("\x1b[1m\x1b[31mError:\x1b(B\x1b[m ");
@@ -20,7 +20,7 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, subidx: usize, msg: []const u8) 
     var len: usize = 0; // TODO unicode
     var arrow_pos: ?usize = null;
 
-    for (ai.args) |arg, i| {
+    for (ai.report_info) |arg, i| {
         if (i + 1 == idx) arrow_pos = len;
 
         if (i == 0) {
@@ -40,7 +40,7 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, subidx: usize, msg: []const u8) 
             }
         }
         len += 1;
-        if (i + 1 == ai.args.len and arrow_pos == null) {
+        if (i + 1 == ai.report_info.len and arrow_pos == null) {
             try out.writeAll("\x1b(B\x1b[m");
             try out.writeAll(" \x1b[90m" ++ missing_here);
         }
@@ -54,34 +54,57 @@ fn printReportErrMsg(ai: *ArgsIter, idx: usize, subidx: usize, msg: []const u8) 
     try out.writeAll("\n");
 }
 
-pub const ArgsIter = struct {
-    args: []const []const u8,
+pub const Positional = struct {
+    text: []const u8,
+    index: usize,
+    offset: usize = 0,
+
+    pub fn err(positional: Positional, pi: *PositionalIter, msg: []const u8) ReportedError {
+        std.log.err("hmm {} {} {}", .{ positional, positional.index, msg });
+        return reportError(pi, positional.index, positional.offset, msg);
+    }
+};
+
+pub const PositionalIter = struct {
+    args: []Positional,
+    report_info: []const []const u8,
     index: usize = 0,
-    subindex: usize = 0,
-    pub fn next(ai: *ArgsIter) ?[]const u8 {
-        ai.subindex = 0;
-        if (ai.index >= ai.args.len) {
-            if (ai.index == ai.args.len) ai.index += 1;
+    offset: usize = 0,
+
+    /// args are not duped and must be alive for the lfietime of PositionalIter
+    pub fn positionalsFromArgs(args: []const []const u8, alloc: *std.mem.Allocator) ![]Positional {
+        const positionals = try alloc.alloc(Positional, args.len);
+        for (positionals) |*positional, i| {
+            positional.text = args[i];
+            positional.index = i + 1; // hmm
+            positional.offset = 0;
+        }
+        return positionals;
+    }
+
+    pub fn next(pi: *PositionalIter) ?Positional {
+        pi.offset = 0;
+        if (pi.index >= pi.args.len) {
+            if (pi.index == pi.args.len) pi.index += 1;
             return null;
         }
-        defer ai.index += 1;
-        return ai.args[ai.index];
+        defer pi.index += 1;
+        return pi.args[pi.index];
     }
-    /// if(ai.readArgOneValue(arg, "--speed") orelse return ai.err("Expected number"))) |speed|
-    pub fn readValue(ai: *ArgsIter, arg: []const u8, comptime expcdt: []const u8) !?[]const u8 {
-        if (std.mem.eql(u8, arg, expcdt)) {
-            return ai.next() orelse return error.NoValue;
+    pub fn readValue(pi: *PositionalIter, first: Positional, expected: []const u8) !?Positional {
+        if (std.mem.eql(u8, first.text, expected)) {
+            return pi.next() orelse error.NoValue;
         }
-        if (std.mem.startsWith(u8, arg, expcdt ++ "=")) {
-            ai.subindex = expcdt.len + 1;
-            const v = arg[expcdt.len + 1 ..];
+        if (std.mem.startsWith(u8, first.text, expected) and std.mem.startsWith(u8, first.text[expected.len..], "=")) {
+            pi.offset = expected.len + 1;
+            const v = first.text[expected.len + 1 ..];
             if (v.len == 0) return error.NoValue;
-            return v;
+            return Positional{ .text = v, .index = pi.index, .offset = first.offset + expected.len + 1 };
         }
         return null;
     }
-    pub fn err(ai: *ArgsIter, msg: []const u8) ReportedError {
-        return reportError(ai, ai.index, ai.subindex, msg);
+    pub fn err(pi: *PositionalIter, msg: []const u8) ReportedError {
+        return reportError(pi, pi.index, pi.offset, msg);
     }
 };
 
@@ -102,7 +125,7 @@ pub const MainFnArgs = struct {
     arena_allocator: *std.mem.Allocator,
     allocator: *std.mem.Allocator,
     // stdout_writer: // make your own
-    args_iter: *ArgsIter,
+    args_iter: *PositionalIter,
 };
 
 pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
@@ -119,7 +142,10 @@ pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
             const args = try std.process.argsAlloc(alloc);
             defer std.process.argsFree(alloc, args);
 
-            var ai = ArgsIter{ .args = args };
+            var positionals = try PositionalIter.positionalsFromArgs(args, alloc);
+            defer alloc.free(positionals);
+
+            var ai = PositionalIter{ .args = positionals, .report_info = args };
             _ = ai.next() orelse @panic("no arg 0");
 
             mainFn(MainFnArgs{ .arena_allocator = alloc, .allocator = &gpalloc.allocator, .args_iter = &ai }) catch |e| switch (@as(anyerror, e)) {
@@ -178,7 +204,7 @@ pub const main = anyMain(struct {
             return ai.err("Missing program name.");
         };
         inline for (@typeInfo(Programs).Struct.fields) |field| {
-            if (std.mem.eql(u8, field.name, progname)) {
+            if (std.mem.eql(u8, field.name, progname.text)) {
                 try field.field_type.exec(exec_args);
                 break;
             }
@@ -187,9 +213,12 @@ pub const main = anyMain(struct {
 }.mainfn);
 
 fn testReadNumber(args: []const []const u8, expected: ?[]const u8) void {
-    var ai = ArgsIter{ .args = args };
+    const alloc = std.testing.allocator;
+    var positionals = PositionalIter.positionalsFromArgs(args, alloc) catch @panic("oom");
+    defer alloc.free(positionals);
+    var ai = PositionalIter{ .args = positionals, .report_info = args };
     const valu = (ai.readValue(ai.next() orelse @panic("fail"), "--number") catch @panic("fail"));
-    if (valu) |v| if (expected) |e| std.testing.expectEqualStrings(v, e) else @panic("fail") //
+    if (valu) |v| if (expected) |e| std.testing.expectEqualStrings(v.text, e) else @panic("fail") //
     else if (expected) |e| @panic("fail") else {}
 }
 
