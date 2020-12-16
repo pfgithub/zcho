@@ -73,7 +73,7 @@ pub fn stopCaptureMouse() !void {
 }
 
 pub const Event = union(enum) {
-    const Keycode = union(enum) {
+    pub const Keycode = union(enum) {
         character: u21,
         backspace,
         delete,
@@ -87,11 +87,11 @@ pub const Event = union(enum) {
         home,
         end,
     };
-    const KeyModifiers = struct {
+    pub const KeyModifiers = struct {
         ctrl: bool = false,
         shift: bool = false,
     };
-    const KeyEvent = struct {
+    pub const KeyEvent = struct {
         modifiers: KeyModifiers = .{},
         keycode: Keycode,
     };

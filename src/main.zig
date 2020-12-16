@@ -157,7 +157,7 @@ pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
             _ = ai.next() orelse @panic("no arg 0");
 
             mainFn(MainFnArgs{ .arena_allocator = alloc, .allocator = &gpalloc.allocator, .args_iter = &ai }) catch |e| switch (@as(anyerror, e)) {
-                error.ReportedError => {},
+                error.ReportedError => return 1,
                 else => return e,
             };
 
@@ -173,6 +173,7 @@ const Programs = struct {
     jsonexplorer: @import("jsonexplorer.zig"),
     zigsh: @import("zigsh.zig"),
     @"escape-sequence-debug": @import("escape_sequence_debug.zig"),
+    menu: @import("menu.zig"),
     clreol: ClrEol,
     @"--help": HelpPage,
 };
