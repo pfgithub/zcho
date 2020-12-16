@@ -97,6 +97,9 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     }
     try out.writeAll("\x1b[2D");
     try fitLineToCpos(out, menu_choices.items.len, &cpos);
+    for (menu_choices.items) |_| {
+        try out.writeAll("\x1b[A\x1b[2K");
+    }
 
     const stdout = std.io.getStdOut().writer();
     try stdout.writeAll(menu_choices.items[line].value);
