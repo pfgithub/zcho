@@ -27,7 +27,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
             eventMode = true;
             continue;
         }
-        return ai.err("Bad arg. Args: --mouse, --event");
+        return ai.err("Bad arg. Args: --mouse, --event", .{});
     }
 
     if (mouseMode) try cli.startCaptureMouse();

@@ -22,11 +22,11 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                 cfg.parsing_args = false;
                 continue;
             }
-            if (ai.readValue(arg, "--raw") catch return ai.err("Expected value")) |rawv| {
+            if (ai.readValue(arg, "--raw") catch return ai.err("Expected value", .{})) |rawv| {
                 try positionals.append(arg);
                 continue;
             }
-            return ai.err("Bad arg. See --help");
+            return ai.err("Bad arg. See --help", .{});
         }
         try positionals.append(arg);
     }

@@ -25,7 +25,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     const alloc = exec_args.allocator;
     const ai = exec_args.args_iter;
 
-    if (ai.next()) |_| return ai.err("unsupported argument. todo -c");
+    if (ai.next()) |_| return ai.err("unsupported argument. todo -c", .{});
 
     const stdin = std.io.getStdIn();
     const stdout = std.io.getStdOut();

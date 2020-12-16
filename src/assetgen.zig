@@ -138,11 +138,11 @@ fn filterHelp(fctx: *FilterCtx) !void {
     return error.ReportedError;
 }
 fn filterPrint(fctx: *FilterCtx) !void {
-    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -read image.png before this.");
+    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -read image.png before this.", .{});
     printImage(fctx.image.?);
 }
 fn filterRead(fctx: *FilterCtx) !void {
-    const infile = fctx.ai.next() orelse return fctx.ai.err("Expected png file");
+    const infile = fctx.ai.next() orelse return fctx.ai.err("Expected png file", .{});
 
     if (fctx.image) |*img| img.deinit(); // maybe warn if the image is never used
     fctx.setImage().* = blk: {
@@ -152,8 +152,8 @@ fn filterRead(fctx: *FilterCtx) !void {
     };
 }
 fn filterWrite(fctx: *FilterCtx) !void {
-    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -read image.png before this.");
-    const filename = fctx.ai.next() orelse return fctx.ai.err("Expected output file name");
+    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -read image.png before this.", .{});
+    const filename = fctx.ai.next() orelse return fctx.ai.err("Expected output file name", .{});
 
     const outfile = try std.fs.cwd().createFile(filename.text, .{});
     defer outfile.close();
@@ -163,7 +163,7 @@ fn filterWrite(fctx: *FilterCtx) !void {
 // -new 10x10 -fill #FFF
 fn filterNew(fctx: *FilterCtx) !void {}
 fn filterVerticalScroll(fctx: *FilterCtx) !void {
-    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -load image.png before this.");
+    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -load image.png before this.", .{});
     const img = &fctx.image.?;
     const alloc = fctx.alloc;
 
@@ -182,7 +182,7 @@ fn filterVerticalScroll(fctx: *FilterCtx) !void {
 // -setvar @var1 -load image2.png -overlay @var1
 // -wave-function-collapse [ @var1 ( -load b.png ) ( -load c.png ) ]
 fn filterWaveFunctionCollapse(fctx: *FilterCtx) !void {
-    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -load image.png before this.");
+    if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -load image.png before this.", .{});
     const image = &fctx.image.?;
 
     var pattern_width: usize = 3; // these don't change, this is just to simulate it not being comptime-known
@@ -201,7 +201,7 @@ fn filterWaveFunctionCollapse(fctx: *FilterCtx) !void {
                 continue :flp;
             };
             colors.len += 1;
-            if (colors.len >= max_color_count) return fctx.ai.err("More than {} colors were used.");
+            if (colors.len >= max_color_count) return fctx.ai.err("More than {} colors were used.", .{max_color_count});
             colors[colors.len - 1] = color;
         }
     }
@@ -295,18 +295,15 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                 if (std.mem.eql(u8, decl.name, arg.text)) {
                     @field(Filters, decl.name)[0](&fctx) catch |e| switch (@as(anyerror, e)) {
                         error.ReportedError => return e,
-                        else => {
-                            const erra = try std.fmt.allocPrint(alloc, "Got error: {}", .{e});
-                            return ai.err(erra);
-                        },
+                        else => return ai.err("Got error: {}", .{e}),
                     };
                     ran_one_filter = true;
                     continue :whlp;
                 }
             }
-            return ai.err("Bad arg. See --help");
+            return ai.err("Bad arg. See --help", .{});
         }
-        return ai.err("Bad arg. See --help");
+        return ai.err("Bad arg. See --help", .{});
     }
     cfg._ = positionals.toOwnedSlice();
 

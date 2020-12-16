@@ -334,7 +334,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     const alloc = exec_args.allocator;
     const ai = exec_args.args_iter;
 
-    if (ai.next()) |arg| return ai.err("Usage: jsonexplorer < file.json");
+    if (ai.next()) |arg| return ai.err("Usage: jsonexplorer < file.json", .{});
 
     const stdinf = std.io.getStdIn();
 

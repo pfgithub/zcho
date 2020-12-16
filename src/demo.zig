@@ -23,7 +23,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                 parsing_args = false;
                 continue;
             }
-            if (ai.readValue(arg, "--raw") catch return ai.err("Expected value")) |rawv| {
+            if (ai.readValue(arg, "--raw") catch return ai.err("Expected value", .{})) |rawv| {
                 try positionals.append(rawv);
                 continue;
             }
@@ -31,12 +31,12 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                 try out.writeAll("Help.");
                 return;
             }
-            return ai.err("Bad arg. See --help");
+            return ai.err("Bad arg. See --help", .{});
         }
         try positionals.append(arg);
     }
     var oi = PositionalIter{ .args = positionals.toOwnedSlice(), .report_info = ai.report_info };
-    if (oi.next()) |nxt| return nxt.err(&oi, "Too many arguments");
+    if (oi.next()) |nxt| return nxt.err(&oi, "Too many arguments", .{});
 
     try out.writeAll("TODO code here.\n");
 }

@@ -89,12 +89,12 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                 cfg.demo = true;
                 continue;
             }
-            if (ai.readValue(arg, "--speed") catch return ai.err("Expected number")) |speedms| {
-                cfg.preset_speed_override = std.fmt.parseInt(u32, speedms.text, 10) catch return speedms.err(ai, "Invalid number. Expected speed in ms.");
+            if (ai.readValue(arg, "--speed") catch return ai.err("Expected number", .{})) |speedms| {
+                cfg.preset_speed_override = std.fmt.parseInt(u32, speedms.text, 10) catch return speedms.err(ai, "Invalid number. Expected speed in ms.", .{});
                 continue;
             }
-            if (ai.readValue(arg, "--preset") catch return ai.err("Expected preset name")) |presetname| {
-                cfg.preset = spinners.get(presetname.text) orelse return presetname.err(ai, "Invalid preset name. List of presets in --list-presets");
+            if (ai.readValue(arg, "--preset") catch return ai.err("Expected preset name", .{})) |presetname| {
+                cfg.preset = spinners.get(presetname.text) orelse return presetname.err(ai, "Invalid preset name. List of presets in --list-presets", .{});
                 continue;
             }
             if (std.mem.eql(u8, arg.text, "--list-presets")) {
@@ -106,7 +106,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                 return;
             }
             if (std.mem.startsWith(u8, arg.text, "-")) {
-                return ai.err("Bad arg. See --help");
+                return ai.err("Bad arg. See --help", .{});
             }
         }
         try positionals.append(arg);
@@ -122,7 +122,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
         .normal => {},
     }
 
-    if (cfg._.len > 0) return cfg._[0].err(ai, "usage eg: spinner");
+    if (cfg._.len > 0) return cfg._[0].err(ai, "usage eg: spinner", .{});
     while (true) {
         const spin = getFrame(cfg.preset);
         try out.writeAll(spin.frame);

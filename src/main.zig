@@ -1,20 +1,20 @@
 const std = @import("std");
 
 const ReportedError = error{ReportedError};
-pub fn reportError(ai: *PositionalIter, idx: usize, subidx: usize, msg: []const u8) ReportedError {
-    printReportErrMsg(ai, idx, subidx, msg) catch return ReportedError.ReportedError;
+pub fn reportError(ai: *PositionalIter, idx: usize, subidx: usize, comptime format: []const u8, args: anytype) ReportedError {
+    printReportErrMsg(ai, idx, subidx, format, args) catch return ReportedError.ReportedError;
     return ReportedError.ReportedError;
 }
 pub fn unicodeLen(text: []const u8) usize {
     return @import("lib/wcwidth.zig").wcswidth(text);
 }
 const missing_here = "[missing]";
-fn printReportErrMsg(ai: *PositionalIter, idx: usize, subidx: usize, msg: []const u8) !void {
+fn printReportErrMsg(ai: *PositionalIter, idx: usize, subidx: usize, comptime format: []const u8, args: anytype) !void {
     // idx - 1 is the ai.report_info[i] that it is referring to
     // if idx is 0, it is not referring to any specific arg
     const out = std.io.getStdErr().writer();
     try out.writeAll("\x1b[1m\x1b[31mError:\x1b(B\x1b[m ");
-    try out.writeAll(msg);
+    try out.print(format, args);
     try out.writeAll("\n");
 
     var len: usize = 0; // TODO unicode
@@ -59,9 +59,8 @@ pub const Positional = struct {
     index: usize,
     offset: usize = 0,
 
-    pub fn err(positional: Positional, pi: *PositionalIter, msg: []const u8) ReportedError {
-        std.log.err("hmm {} {} {}", .{ positional, positional.index, msg });
-        return reportError(pi, positional.index, positional.offset, msg);
+    pub fn err(positional: Positional, pi: *PositionalIter, comptime format: []const u8, args: anytype) ReportedError {
+        return reportError(pi, positional.index, positional.offset, format, args);
     }
 };
 
@@ -103,17 +102,17 @@ pub const PositionalIter = struct {
         }
         return null;
     }
-    pub fn err(pi: *PositionalIter, msg: []const u8) ReportedError {
+    pub fn err(pi: *PositionalIter, comptime format: []const u8, args: anytype) ReportedError {
         // TODO determine index and offset based on the positionals in here
         if (pi.args.len == 0) {
-            return reportError(pi, pi.report_info.len + 1, 0, msg);
+            return reportError(pi, pi.report_info.len + 1, 0, format, args);
         }
         if (pi.index - 1 >= pi.args.len) {
-            return reportError(pi, pi.report_info.len + 1, 0, msg);
+            return reportError(pi, pi.report_info.len + 1, 0, format, args);
         }
         if (pi.index == 0) unreachable; // I think something is supposed to be called first idk
         const value_here = pi.args[pi.index - 1];
-        return reportError(pi, value_here.index, value_here.offset + pi.offset, msg);
+        return reportError(pi, value_here.index, value_here.offset + pi.offset, format, args);
     }
 };
 
@@ -183,7 +182,7 @@ const ClrEol = struct {
         const ai = exec_args.args_iter;
         const out = std.io.getStdOut().writer();
 
-        if (ai.next()) |arg| return ai.err("Args not allowed");
+        if (ai.next()) |arg| return ai.err("Args not allowed", .{});
         try out.writeAll("\x1b[K");
     }
     const shortdesc = "same as `tput el`";
@@ -193,7 +192,7 @@ const HelpPage = struct {
         const ai = exec_args.args_iter;
         const out = std.io.getStdOut().writer();
 
-        // if (ai.next()) |v| return ea.ai.err("Unexpected extra arg");
+        // if (ai.next()) |v| return ea.ai.err("Unexpected extra arg", .{});
         try out.writeAll("Usage:\n");
         try out.writeAll("    z [progname] [args...]\n");
         try out.writeAll("Programs:\n");
@@ -210,14 +209,14 @@ pub const main = anyMain(struct {
 
         const progname = ai.next() orelse {
             try HelpPage.exec(exec_args);
-            return ai.err("Missing program name.");
+            return ai.err("Missing program name.", .{});
         };
         inline for (@typeInfo(Programs).Struct.fields) |field| {
             if (std.mem.eql(u8, field.name, progname.text)) {
                 try field.field_type.exec(exec_args);
                 break;
             }
-        } else return ai.err("bad program name. check --help.");
+        } else return ai.err("bad program name. check --help.", .{});
     }
 }.mainfn);
 

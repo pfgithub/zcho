@@ -1,7 +1,6 @@
 const std = @import("std");
 const help = @import("main.zig");
 const ArgsIter = help.ArgsIter;
-const reportError = help.reportError;
 const range = help.range;
 const progress_import = @import("lib/progress.zig");
 const Progress = progress_import.Progress;
@@ -52,14 +51,14 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                 cfg.parsing_args = false;
                 continue;
             }
-            if (ai.readValue(arg, "--preset") catch return ai.err("Expected preset name")) |presetname| {
-                cfg.preset = presets.get(presetname.text) orelse return presetname.err(ai, "Invalid preset name. List of presets in --list-presets");
+            if (ai.readValue(arg, "--preset") catch return ai.err("Expected preset name", .{})) |presetname| {
+                cfg.preset = presets.get(presetname.text) orelse return presetname.err(ai, "Invalid preset name. List of presets in --list-presets", .{});
                 continue;
             }
-            if (ai.readValue(arg, "--width") catch return ai.err("Expected width value")) |widthstr| {
+            if (ai.readValue(arg, "--width") catch return ai.err("Expected width value", .{})) |widthstr| {
                 cfg.width = std.fmt.parseInt(u16, widthstr.text, 10) catch |e| switch (e) {
-                    error.Overflow => return ai.err("Maximum width is {std.math.maxInt(u16)}"),
-                    error.InvalidCharacter => return ai.err("Expected a number"),
+                    error.Overflow => return ai.err("Maximum width is {}", .{std.math.maxInt(u16)}),
+                    error.InvalidCharacter => return ai.err("Expected a number", .{}),
                 };
                 continue;
             }
@@ -72,7 +71,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                 continue;
             }
             if (std.mem.startsWith(u8, arg.text, "-")) {
-                return help.reportError(ai, ai.index, 0, "Bad arg. See --help");
+                return arg.err(ai, "Bad arg. See --help", .{});
             }
         }
         try positionals.append(arg);
@@ -85,9 +84,9 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
             // expect percentage.
             // maybe in the future support 1/2 or 1/ 2 or something? probably not, 1 / 2 is fine
             const parg = cfg._[0];
-            if (!std.mem.endsWith(u8, parg.text, "%")) return reportError(ai, parg.index, parg.offset + parg.text.len, "Expected 25% or something. see --help");
+            if (!std.mem.endsWith(u8, parg.text, "%")) return parg.err(ai, "Expected 25% or something. see --help", .{});
             const number = std.fmt.parseFloat(f64, parg.text[0 .. parg.text.len - 1]) catch |e| switch (e) {
-                error.InvalidCharacter => return parg.err(ai, "This is not a number. see --help"),
+                error.InvalidCharacter => return parg.err(ai, "This is not a number. see --help", .{}),
             };
             const umax = std.math.maxInt(u16);
             var fval = number * umax / 100;
@@ -96,19 +95,19 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
             break :blk PMax{ .progress = @floatToInt(u16, fval), .max = umax };
         },
         3 => blk: {
-            if (!std.mem.eql(u8, "/", cfg._[1].text)) return cfg._[1].err(ai, "Expected eg 1 / 2. See --help");
+            if (!std.mem.eql(u8, "/", cfg._[1].text)) return cfg._[1].err(ai, "Expected eg 1 / 2. See --help", .{});
             const left = std.fmt.parseInt(u16, cfg._[0].text, 10) catch |e| switch (e) {
-                error.InvalidCharacter => return cfg._[0].err(ai, "This is not a number."),
-                error.Overflow => return cfg._[0].err(ai, "Number too big. Max is {std.math.maxInt(u16)}"),
+                error.InvalidCharacter => return cfg._[0].err(ai, "This is not a number.", .{}),
+                error.Overflow => return cfg._[0].err(ai, "Number too big. Max is {}", .{std.math.maxInt(u16)}),
             };
             const right = std.fmt.parseInt(u16, cfg._[2].text, 10) catch |e| switch (e) {
-                error.InvalidCharacter => return cfg._[2].err(ai, "This is not a number."),
-                error.Overflow => return cfg._[2].err(ai, "Number too big. Max is {std.math.maxInt(u16)}"),
+                error.InvalidCharacter => return cfg._[2].err(ai, "This is not a number.", .{}),
+                error.Overflow => return cfg._[2].err(ai, "Number too big. Max is {}", .{std.math.maxInt(u16)}),
             };
             break :blk PMax{ .progress = left, .max = right };
         },
         else => {
-            return cfg._[cfg._.len - 1].err(ai, "Expected 1 / 2 or 25% or something. see --help");
+            return cfg._[cfg._.len - 1].err(ai, "Expected 1 / 2 or 25% or something. see --help", .{});
         },
     };
 
@@ -130,7 +129,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     }
     const pmx = p_max orelse {
         if (cfg._.len > 0) unreachable; // I think this should get reported
-        return ai.err("Expected progress, eg 25 / 100 or 25%. See --help");
+        return ai.err("Expected progress, eg 25 / 100 or 25%. See --help", .{});
     };
 
     // ok what to do:
