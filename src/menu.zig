@@ -94,9 +94,10 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
             break;
         } else if (ev == .key and ev.key.keycode == .character and std.meta.eql(ev.key.modifiers, cli.Event.KeyModifiers{})) {
             if (std.fmt.charToDigit(@truncate(u8, ev.key.keycode.character), 10)) |digit| {
-                line = digit;
-                if (line > menu_choices.items.len) line = menu_choices.items.len;
-                if (line > 0) line -= 1;
+                if (digit <= menu_choices.items.len and digit > 0) {
+                    if (line == digit - 1) break;
+                    line = digit - 1;
+                }
             } else |e| {}
         }
         try fitLineToCpos(out, line, &cpos);
