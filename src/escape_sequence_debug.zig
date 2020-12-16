@@ -12,11 +12,9 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     const stdoutF = std.io.getStdOut();
     const stdout = stdoutF.writer();
 
-    const ot = try cli.enterRawMode(stdinF);
-    defer cli.exitRawMode(stdinF, ot) catch @panic("failed to exit");
-
     var mouseMode = false;
     var eventMode = false;
+    var rawMode = true;
     while (ai.next()) |arg| {
         // std.debug.warn("ARG: {s}\n", .{arg});
         if (std.mem.eql(u8, arg.text, "--mouse")) {
@@ -27,8 +25,15 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
             eventMode = true;
             continue;
         }
-        return ai.err("Bad arg. Args: --mouse, --event", .{});
+        if (std.mem.eql(u8, arg.text, "--no-raw")) {
+            rawMode = false;
+            continue;
+        }
+        return ai.err("Bad arg. Args: --mouse, --event, --no-raw", .{});
     }
+
+    const ot: ?std.os.termios = if (rawMode) try cli.enterRawMode(stdinF) else null;
+    defer if (ot) |o| cli.exitRawMode(stdinF, o) catch @panic("failed to exit");
 
     if (mouseMode) try cli.startCaptureMouse();
     defer if (mouseMode) cli.stopCaptureMouse() catch @panic("failed to stop mouse capture");

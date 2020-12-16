@@ -80,7 +80,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
 
     try fitLineToCpos(out, line, &cpos);
 
-    while (try cli.nextEvent(stdinF)) |ev| {
+    while (cli.nextEvent(stdinF) catch @as(cli.Event, .none)) |ev| {
         if (ev.is("ctrl+c")) {
             try out.writeAll("\x1b[2D");
             try fitLineToCpos(out, menu_choices.items.len, &cpos);
