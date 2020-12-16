@@ -7,7 +7,7 @@ const cli = @import("lib/cli.zig");
 pub const main = help.anyMain(exec);
 
 const Config = struct {
-    flag_enabled: bool = false,
+    default_value: ?Positional = null,
 };
 
 pub fn exec(exec_args: help.MainFnArgs) !void {
@@ -17,15 +17,19 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
 
     var cfg = Config{};
     var parsing_args = true;
-    var positionals = std.ArrayList(Positional).init(alloc);
+
+    const MenuChoice = struct { name: []const u8, value: []const u8 };
+    var menu_choices = std.ArrayList(MenuChoice).init(alloc);
+
     while (ai.next()) |arg| {
         if (parsing_args and std.mem.startsWith(u8, arg.text, "-")) {
             if (std.mem.eql(u8, arg.text, "--")) {
                 parsing_args = false;
                 continue;
             }
-            if (ai.readValue(arg, "--raw") catch return ai.err("Expected value", .{})) |rawv| {
-                try positionals.append(rawv);
+            if (ai.readValue(arg, "--default") catch return ai.err("Expected value", .{})) |rawv| {
+                if (cfg.default_value) |dv| return dv.err(ai, "Default value set twice", .{});
+                cfg.default_value = rawv;
                 continue;
             }
             if (std.mem.startsWith(u8, arg.text, "--help")) {
@@ -34,27 +38,29 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
             }
             return ai.err("Bad arg. See --help", .{});
         }
-        try positionals.append(arg);
-    }
-    var oi = PositionalIter{ .args = positionals.toOwnedSlice(), .report_info = ai.report_info };
-
-    const MenuChoice = struct { name: []const u8, value: []const u8 };
-    var menu_choices = std.ArrayList(MenuChoice).init(alloc);
-    while (oi.next()) |item| {
-        if (std.mem.eql(u8, item.text, "[")) {
-            const namev = oi.next() orelse return ai.err("Expected name", .{});
-            const valuev = oi.next() orelse return ai.err("Expected value", .{});
-            const rbracket = oi.next() orelse return ai.err("Expected `]`", .{});
+        if (std.mem.eql(u8, arg.text, "[")) {
+            const namev = ai.next() orelse return ai.err("Expected name", .{});
+            const valuev = ai.next() orelse return ai.err("Expected value", .{});
+            const rbracket = ai.next() orelse return ai.err("Expected `]`", .{});
             if (!std.mem.eql(u8, rbracket.text, "]")) return rbracket.err(ai, "Expected `]`", .{});
             try menu_choices.append(.{ .name = namev.text, .value = valuev.text });
         } else {
-            try menu_choices.append(.{ .name = item.text, .value = item.text });
+            try menu_choices.append(.{ .name = arg.text, .value = arg.text });
         }
     }
-    if (menu_choices.items.len == 0) return oi.err("Expected list of choices", .{});
+
+    if (menu_choices.items.len == 0) return ai.err("Expected list of choices", .{});
 
     var line: usize = 0;
     var cpos = menu_choices.items.len - 1;
+
+    if (cfg.default_value) |dv| {
+        line = for (menu_choices.items) |choice, i| {
+            if (std.mem.eql(u8, choice.value, dv.text)) {
+                break i;
+            }
+        } else return dv.err(ai, "Default value was not found in item list", .{});
+    }
 
     for (menu_choices.items) |choice, i| {
         if (i < 9) {
