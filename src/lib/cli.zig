@@ -270,6 +270,25 @@ fn readNormalCharacter(char: u8, modifiers: Event.KeyModifiers) !Event {
     }
 }
 
+pub const RowCol = struct { lyn: u32, col: u32 };
+pub fn getCursorPosition(stdinf: std.fs.File, stdout: anytype) !RowCol {
+    if (!std.os.isatty(stdinf.handle)) return error.NotATTY;
+
+    const stdin = stdinf.reader();
+
+    try stdout.writeAll("\x1b[6n");
+    // ESC [ rows ; cols R
+
+    if ((try stdin.readByte()) != '\x1b') return error.Unexpected;
+    if ((try stdin.readByte()) != '[') return error.Unexpected;
+    const rows = try readInt(stdin);
+    if (rows.char != ';') return error.Unexpected;
+    const cols = try readInt(stdin);
+    if (cols.char != 'R') return error.Unexpected;
+
+    return RowCol{ .lyn = rows.val - 1, .col = cols.val - 1 };
+}
+
 pub fn nextEvent(stdinf: std.fs.File) !?Event {
     const stdin = stdinf.reader();
 

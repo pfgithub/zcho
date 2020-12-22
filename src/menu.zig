@@ -9,6 +9,11 @@ pub const main = help.anyMain(exec);
 const Config = struct {
     default_value: ?Positional = null,
 };
+const MenuChoice = struct {
+    name: []const u8,
+    value: []const u8,
+    // hotkey: u21,
+};
 
 pub fn exec(exec_args: help.MainFnArgs) !void {
     const ai = exec_args.args_iter;
@@ -18,7 +23,6 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     var cfg = Config{};
     var parsing_args = true;
 
-    const MenuChoice = struct { name: []const u8, value: []const u8 };
     var menu_choices = std.ArrayList(MenuChoice).init(alloc);
 
     while (ai.next()) |arg| {
@@ -78,13 +82,49 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     const ot: ?std.os.linux.termios = cli.enterRawMode(stdinF) catch |e| null;
     defer if (ot) |o| cli.exitRawMode(stdinF, o) catch @panic("failed to exit");
 
+    // get current cursor position. this is the end of the list.
+    const end_pos = (cli.getCursorPosition(stdinF, out) catch |e| switch (e) {
+        error.NotATTY => cli.RowCol{ .lyn = 0, .col = 0 },
+        else => return e,
+    }).lyn;
+    const start_pos = if (menu_choices.items.len > end_pos) 0 else end_pos - menu_choices.items.len + 1;
+
     try fitLineToCpos(out, line, &cpos);
+
+    cli.startCaptureMouse() catch {};
+    defer cli.stopCaptureMouse() catch {};
+
+    var mouse_selection: ?usize = null;
 
     while (cli.nextEvent(stdinF) catch @as(cli.Event, .none)) |ev| {
         if (ev.is("ctrl+c")) {
             try out.writeAll("\x1b[2D");
             try fitLineToCpos(out, menu_choices.items.len, &cpos);
             return error.ReportedError;
+        }
+        switch (ev) {
+            .mouse => |mev| {
+                const y = mev.y;
+                // end_pos col: 25
+                // y: 25
+                if (y > end_pos) {
+                    // off the edge of the screen. deselect.
+                    mouse_selection = null;
+                } else if (y < start_pos) {
+                    mouse_selection = null;
+                } else {
+                    mouse_selection = y - start_pos;
+                }
+
+                if (mev.button == .left) {
+                    // click
+                    if (mouse_selection) |mslxn| {
+                        line = mslxn;
+                        if (mev.direction == .up) break;
+                    }
+                }
+            },
+            else => {},
         }
         if (ev.is("down")) {
             if (line + 1 < menu_choices.items.len) line += 1;
@@ -93,7 +133,8 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
         } else if (ev.is("enter")) {
             break;
         } else if (ev == .key and ev.key.keycode == .character and std.meta.eql(ev.key.modifiers, cli.Event.KeyModifiers{})) {
-            if (std.fmt.charToDigit(@truncate(u8, ev.key.keycode.character), 10)) |digit| {
+            if (ev.key.keycode.character > '0' and ev.key.keycode.character < '9') {
+                const digit = @intCast(u8, ev.key.keycode.character - '0');
                 if (digit <= menu_choices.items.len and digit > 0) {
                     if (line == digit - 1) break;
                     line = digit - 1;
