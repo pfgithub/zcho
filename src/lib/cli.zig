@@ -6,7 +6,7 @@ const EscapeCodes = struct {
 };
 
 fn print(msg: []const u8) !void {
-    try std.io.getStdOut().writer().print("{}", .{msg});
+    try std.io.getStdErr().writer().print("{}", .{msg});
 }
 
 /// enters fullscreen
