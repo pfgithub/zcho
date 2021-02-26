@@ -41,20 +41,13 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     try stdout.print("Escape sequence debug started. Window size is: {}\n", .{try cli.winSize(stdoutF)});
 
     if (eventMode) {
-        try cli.mainLoop(false, struct {
-            pub fn f(data: anytype, ev: cli.Event) bool {
-                const stdoutF2 = std.io.getStdOut();
-                const stdout2 = stdoutF2.writer();
-
-                stdout2.print("{}\n", .{ev}) catch return false;
-                if (ev.is("ctrl+c")) {
-                    return false;
-                }
-                if (ev.is("ctrl+p")) @panic("panic test");
-                return true;
+        while (try cli.nextEvent(stdinF)) |ev| {
+            stdout.print("{}\n", .{ev}) catch break;
+            if (ev.is("ctrl+c")) {
+                break;
             }
-        }.f, stdinF);
-        return;
+            if (ev.is("ctrl+p")) @panic("panic test");
+        }
     }
     const escape_start = "\x1b[34m\\\x1b[94m";
     const escape_end = "\x1b(B\x1b[m";

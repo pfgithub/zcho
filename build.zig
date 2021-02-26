@@ -25,7 +25,7 @@ pub fn build(b: *Builder) void {
         var tool: []const u8 = filename[0 .. filename.len - ".zig".len];
         if (std.mem.eql(u8, tool, "main")) tool = "z";
 
-        const fullpath = std.fmt.allocPrint(b.allocator, "src/{}", .{filename}) catch unreachable;
+        const fullpath = std.fmt.allocPrint(b.allocator, "src/{s}", .{filename}) catch unreachable;
 
         const exe = b.addExecutable(tool, fullpath);
         exe.setTarget(target);
@@ -39,7 +39,7 @@ pub fn build(b: *Builder) void {
 
         exe.install();
 
-        const description = std.fmt.allocPrint(b.allocator, "Build {} → {}", .{ fullpath, tool }) catch unreachable;
+        const description = std.fmt.allocPrint(b.allocator, "Build {s} → {s}", .{ fullpath, tool }) catch unreachable;
 
         const build_step = b.step(tool, description);
         build_step.dependOn(&exe.install_step.?.step);

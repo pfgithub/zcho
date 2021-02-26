@@ -246,7 +246,7 @@ pub fn renderJson(
                 try cli.setTextStyle(out, .{ .fg = cli.Color.from(.white), .bg = bgstyl }, null);
                 try out.print(" \"", .{});
                 try cli.setTextStyle(out, themeStyle, null);
-                try out.print("{}", .{str});
+                try out.print("{s}", .{str});
                 try cli.setTextStyle(out, .{ .fg = cli.Color.from(.white), .bg = bgstyl }, null);
                 try out.print("\"", .{});
                 try cli.setTextStyle(out, .{ .bg = bgstyl }, null);
@@ -264,9 +264,10 @@ pub fn renderJson(
         switch (me.content) {
             .Array => if (me.childNodes.len == 0) try out.writeAll(" []") else if (!me.open) try out.writeAll(" […]"),
             .Object => if (me.childNodes.len == 0) try out.writeAll(" {}") else if (!me.open) try out.writeAll(" {…}"),
-            .String => |str| try out.print(" \"{}\"", .{str}),
+            .String => |str| try out.print(" \"{s}\"", .{str}),
             .Float => |f| try out.print(" {d}", .{f}),
             .Integer => |f| try out.print(" {d}", .{f}),
+            .NumberString => |f| try out.print(" {s}", .{f}),
             .Bool => |f| try out.print(" {}", .{f}),
             .Null => try out.print(" null", .{}),
         }
@@ -318,7 +319,7 @@ pub fn panic(msg: []const u8, stack_trace: ?*std.builtin.StackTrace) noreturn {
 
     var out = std.io.getStdOut().writer();
     cli.setTextStyle(out, .{ .fg = cli.Color.from(.brred) }, null) catch {};
-    out.print("Panic: {}\n", .{msg}) catch {};
+    out.print("Panic: {s}\n", .{msg}) catch {};
 
     if (stack_trace) |trace|
         std.debug.dumpStackTrace(trace.*);

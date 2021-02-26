@@ -130,9 +130,9 @@ fn filterHelp(fctx: *FilterCtx) !void {
     std.debug.warn("    assetgen -read in.png -resize 10x10 -write out.png\n", .{});
     std.debug.warn("Options:\n", .{});
     inline for (@typeInfo(Filters).Struct.decls) |decl| {
-        std.debug.warn("    {}", .{decl.name});
+        std.debug.warn("    {s}", .{decl.name});
         const fopts = @field(Filters, decl.name);
-        if (@hasField(@TypeOf(fopts), "1")) std.debug.warn(": {}", .{fopts.@"1"});
+        if (@hasField(@TypeOf(fopts), "1")) std.debug.warn(": {s}", .{fopts.@"1"});
         std.debug.warn("\n", .{});
     }
     return error.ReportedError;
@@ -197,9 +197,10 @@ fn filterWaveFunctionCollapse(fctx: *FilterCtx) !void {
         flp: for (range(image.w)) |_, x| {
             const color = image.get(x, y);
             // r, g, b, a
-            for (colors) |col| if (std.meta.eql(col, color)) {
-                continue :flp;
-            };
+            for (colors) |col|
+                if (std.meta.eql(col, color)) {
+                    continue :flp;
+                };
             colors.len += 1;
             if (colors.len >= max_color_count) return fctx.ai.err("More than {} colors were used.", .{max_color_count});
             colors[colors.len - 1] = color;

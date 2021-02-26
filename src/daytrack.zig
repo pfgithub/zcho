@@ -43,7 +43,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     if (oi.next()) |nxt| return nxt.err(&oi, "Too many arguments", .{});
 
     const cfg_text = std.fs.cwd().readFileAlloc(alloc, root_dir_path.text, std.math.maxInt(usize)) catch |e| {
-        return root_dir_path.err(ai, "Could not open config file, {}", .{e});
+        return root_dir_path.err(ai, "Could not open config file, {s}", .{e});
     };
 
     // do init

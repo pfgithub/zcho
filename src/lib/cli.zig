@@ -6,7 +6,7 @@ const EscapeCodes = struct {
 };
 
 fn print(msg: []const u8) !void {
-    try std.io.getStdErr().writer().print("{}", .{msg});
+    try std.io.getStdErr().writer().print("{s}", .{msg});
 }
 
 /// enters fullscreen
@@ -144,7 +144,7 @@ pub const Event = union(enum) {
                     continue :b;
                 }
             }
-            std.debug.warn("Unused Section: `{}`\n", .{section});
+            std.debug.warn("Unused Section: `{s}`\n", .{section});
             return error.UnusedSection;
         }
         if (resev.keycode == .character and resev.keycode.character == 0) return error.NeverSetCode;
@@ -407,55 +407,6 @@ pub fn nextEvent(stdinf: std.fs.File) !?Event {
             return Event{ .key = .{ .keycode = .{ .character = unichar } } };
         },
         else => return error.UnsupportedEvent,
-    }
-}
-
-var cbRunning = false;
-var doResize = false;
-var mainLoopFn: fn () void = undefined;
-
-fn handleSigwinch(sig: i32, info: *const std.os.siginfo_t, ctx_ptr: ?*const c_void) callconv(.C) void {
-    if (cbRunning) {
-        doResize = true;
-    } else {
-        mainLoopFn();
-    }
-    setSignalHandler();
-}
-
-fn setSignalHandler() void {
-    var act = std.os.Sigaction{
-        .sigaction = handleSigwinch,
-        .mask = std.os.empty_sigset,
-        .flags = (std.os.SA_SIGINFO | std.os.SA_RESTART | std.os.SA_RESETHAND),
-    };
-    std.os.sigaction(std.os.SIGWINCH, &act, null);
-}
-/// data: any
-/// cb: fn (data: @TypeOf(data), event: Event) bool
-pub fn mainLoop(data: anytype, comptime cb: anytype, stdinF: std.fs.File) !void {
-    const DataType = @TypeOf(data);
-    const MLFnData = struct {
-        var dataptr: usize = undefined;
-        pub fn mainLoopFn_() void {
-            if (!cb(@intToPtr(*const DataType, dataptr).*, .resize))
-                @panic("requested exit during resize handler. not supported.");
-        }
-    };
-    MLFnData.dataptr = @ptrToInt(&data);
-    mainLoopFn = MLFnData.mainLoopFn_;
-    setSignalHandler();
-    while (nextEvent(stdinF) catch @as(?Event, Event.none)) |ev| {
-        cbRunning = true;
-        if (!cb(data, ev)) break;
-        cbRunning = false;
-        // what is this
-        while (doResize) {
-            doResize = false;
-            cbRunning = true;
-            if (!cb(data, .resize)) break;
-            cbRunning = false;
-        }
     }
 }
 
