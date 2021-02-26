@@ -139,7 +139,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                     if (line == digit - 1) break;
                     line = digit - 1;
                 }
-            } else |e| {}
+            }
         }
         try fitLineToCpos(out, line, &cpos);
     }
