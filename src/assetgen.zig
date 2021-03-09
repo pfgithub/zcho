@@ -17,7 +17,17 @@ const Color = packed struct {
     fn fromArray(array: [4]u8) Color {
         return Color{ .r = array[0], .g = array[1], .b = array[2], .a = array[3] };
     }
+    fn rgbHex(color: u24) Color {
+        // this is where a packed struct would be better but it's not allowed
+        // or an unpacking thing like unpackBits(color, 8*2, 8*3) or unpackBits(color, 0xFF0000) even
+        const unpacked_r = @intCast(u8, color & 0xFF0000 >> (2 * 8));
+        const unpacked_g = @intCast(u8, color & 0x00FF00 >> (1 * 8));
+        const unpacked_b = @intCast(u8, color & 0x0000FF >> (0 * 8));
+        return Color{ .r = unpacked_r, .g = unpacked_g, .b = unpacked_b, .a = 255 };
+    }
 };
+
+// unpackBits(number: u{T}, start: comptime_int, end: comptime_int): u{end - start}
 
 const Image = struct {
     alloc: *std.mem.Allocator,
@@ -71,7 +81,7 @@ const Image = struct {
         return Image{ .alloc = alloc, .w = w, .h = h, .data = av };
     }
     fn fill(image: *Image, color: Color) void {
-        for (range(image.h)) |_, y| for (range(image.w)) |x| {
+        for (range(image.h)) |_, y| for (range(image.w)) |_, x| {
             image.set(x, y, color);
         };
     }
@@ -88,13 +98,31 @@ const Image = struct {
     }
 };
 
+fn mixint(start: u8, end: u8, distance: u8) u8 {
+    const start_h: @TypeOf(start, end) = start;
+    const end_h: @TypeOf(start, end) = end;
+    const scale = end_h - start_h;
+    const mixed = @intCast(u8, (@as(u16, scale) * distance) / 256); // u16 / comptime_int(256) should return u8
+    return mixed + start_h;
+}
+
+const transparency_colors = [_]Color{ Color.rgbHex(0xFDFDFD), Color.rgbHex(0xCACACC) };
 fn printImage(img: Image) void {
+    const stdout = std.io.getStdOut().writer();
     for (range(img.h)) |_, y| {
         for (range(img.w)) |_, x| {
             const color = img.get(x, y);
-            std.debug.warn("\x1b[48;2;{};{};{}m  ", .{ color.r, color.g, color.b });
+            const transparency_color_idx: u1 = @intCast(u1, (x +% y) % 2); // usize % comptime_int(2) should return u1
+            const transparency_color = transparency_colors[transparency_color_idx];
+            const mixed = Color{
+                .r = mixint(transparency_color.r, color.r, color.a),
+                .g = mixint(transparency_color.g, color.g, color.a),
+                .b = mixint(transparency_color.b, color.b, color.a),
+                .a = 255,
+            };
+            stdout.print("\x1b[48;2;{};{};{}m  ", .{ mixed.r, mixed.g, mixed.b }) catch @panic("failed to print");
         }
-        std.debug.warn("\x1b(B\x1b[m\n", .{});
+        stdout.print("\x1b(B\x1b[m\n", .{}) catch @panic("failed to print");
     }
 }
 
@@ -109,6 +137,7 @@ const Filters = struct {
     const @"-read" = .{ filterRead, "Read a png file in" };
     const @"-write" = .{ filterWrite, "Write to a png file" };
     const @"-new" = .{ filterNew, "Create a new image" };
+    const @"-fill" = .{ filterFill, "Fill the image with a color" };
     const @"-print" = .{ filterPrint, "Print the image to the command line" };
     const @"-vertical-scroll" = .{ filterVerticalScroll, "Make the image scroll vertically" };
     const @"-wave-function-collapse" = .{ filterWaveFunctionCollapse, "Wave function collapse (overlapping)" };
@@ -161,7 +190,41 @@ fn filterWrite(fctx: *FilterCtx) !void {
     try fctx.image.?.write(outfile.writer());
 }
 // -new 10x10 -fill #FFF
-fn filterNew(fctx: *FilterCtx) !void {}
+fn filterNew(fctx: *FilterCtx) !void {
+    const size = fctx.ai.next() orelse return fctx.ai.err("Expected size eg 10x10", .{});
+    var tknzd = std.mem.tokenize(size.text, "x,");
+
+    const width_str = tknzd.next() orelse return size.err(fctx.ai, "Expected size eg 10x10", .{});
+    const height_str = tknzd.next() orelse return size.err(fctx.ai, "Expected size eg 10x10", .{});
+    if (!std.mem.eql(u8, tknzd.rest(), "")) return size.err(fctx.ai, "Expected size eg 10x10", .{});
+    // TODO __{number}__x{number} eg size.select(0, tknzd.len) or size.select(tknzd[0])   .err(…)
+    const width = std.fmt.parseInt(usize, width_str, 10) catch return size.err(fctx.ai, "Expected number", .{});
+    const height = std.fmt.parseInt(usize, height_str, 10) catch return size.err(fctx.ai, "Expected number", .{});
+
+    fctx.setImage().* = blk: {
+        var img = try Image.create(fctx.alloc, width, height);
+        img.fill(Color{ .r = 255, .g = 255, .b = 255, .a = 0 });
+        break :blk img;
+    };
+}
+fn parseFillColor(text: []const u8) !Color {
+    if (text.len == "#FFFFFF".len and text[0] == '#') { // if(text.match("#[a-fA-F0-9]{6}")) |value|
+        const num_parsed = try std.fmt.parseInt(u24, text[1..], 16);
+        return Color.rgbHex(num_parsed);
+    } else {
+        return error.UnsupportedFormat;
+    }
+}
+fn filterFill(fctx: *FilterCtx) !void {
+    if (fctx.image == null) return fctx.ai.err("No image is loaded. Try -new 10x10 before this.", .{});
+    const image = &fctx.image.?;
+
+    const fill_color = fctx.ai.next() orelse return fctx.ai.err("Expected color eg #FFFFFF", .{});
+
+    const fill_color_parsed = parseFillColor(fill_color.text) catch |e| return fill_color.err(fctx.ai, "Expected color eg #FFFFFF ({})", .{e});
+
+    image.fill(fill_color_parsed);
+}
 fn filterVerticalScroll(fctx: *FilterCtx) !void {
     if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -load image.png before this.", .{});
     const img = &fctx.image.?;
