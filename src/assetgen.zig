@@ -99,11 +99,13 @@ const Image = struct {
 };
 
 fn mixint(start: u8, end: u8, distance: u8) u8 {
-    const start_h: @TypeOf(start, end) = start;
-    const end_h: @TypeOf(start, end) = end;
-    const scale = end_h - start_h;
-    const mixed = @intCast(u8, (@as(u16, scale) * distance) / 256); // u16 / comptime_int(256) should return u8
-    return mixed + start_h;
+    const low = std.math.min(start, end);
+    const high = std.math.max(start, end);
+    const scale = high - low;
+    const mixer = @as(u16, scale) * distance;
+    const mixed = @intCast(u8, mixer / 256); // u16 / comptime_int(256) should return u8
+    if (start == low) return low + mixed;
+    return high - mixed;
 }
 
 const transparency_colors = [_]Color{ Color.rgbHex(0xFDFDFD), Color.rgbHex(0xCACACC) };
