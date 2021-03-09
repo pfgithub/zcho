@@ -141,8 +141,10 @@ const Filters = struct {
     const @"-new" = .{ filterNew, "Create a new image" };
     const @"-fill" = .{ filterFill, "Fill the image with a color" };
     const @"-print" = .{ filterPrint, "Print the image to the command line" };
+    const @"-text3x3" = .{ filterText, "Add 3x3 text from the specified file" };
     const @"-vertical-scroll" = .{ filterVerticalScroll, "Make the image scroll vertically" };
     const @"-wave-function-collapse" = .{ filterWaveFunctionCollapse, "Wave function collapse (overlapping)" };
+    const @"-dev" = .{ filterDev, "Dev" };
 };
 const FilterCtx = struct {
     ai: *ArgsIter,
@@ -226,6 +228,109 @@ fn filterFill(fctx: *FilterCtx) !void {
     const fill_color_parsed = parseFillColor(fill_color.text) catch |e| return fill_color.err(fctx.ai, "Expected color eg #FFFFFF ({})", .{e});
 
     image.fill(fill_color_parsed);
+}
+fn filterDev(fctx: *FilterCtx) !void {
+    if (fctx.image == null) return fctx.ai.err("No image is loaded. Try -new 10x10 before this.", .{});
+    const image = &fctx.image.?;
+    if (image.w != 63 or image.h != 23) return fctx.ai.err("not font", .{});
+    const stdout = std.io.getStdOut().writer();
+
+    for (range(6)) |_, y| for (range(16)) |_, x| {
+        var outv: u9 = 0;
+        for (range(3)) |_, py| for (range(3)) |_, px| {
+            const pixel = image.get(x * 4 + px, y * 4 + py);
+            const value: u1 = if (std.meta.eql(pixel, Color.rgbHex(0x000000))) blk: {
+                break :blk 1;
+            } else if (pixel.a == 0) blk: {
+                break :blk 0;
+            } else {
+                return fctx.ai.err("not font (bad color {})", .{pixel});
+            };
+            outv |= @as(u9, value) << @intCast(u4, py * 3 + px);
+        };
+        // write to 0b0100 xxxx 0b010x xxxx
+        try stdout.writeByte(0b0100_0000 | @intCast(u8, (outv & 0b111100000) >> 5));
+        try stdout.writeByte(0b010_00000 | @intCast(u8, (outv & 0b11111)));
+    };
+}
+const Font3x3 = struct {
+    const font_data = @embedFile("lib/assetgen/font");
+    fn bconv(v: u8) bool {
+        return v > 0;
+    }
+    fn get(char: u8) [9]bool {
+        if (char < 0x20 or char > 0x7F) return [_]bool{true} ** 9;
+        const index: usize = (@as(usize, char) - 0x20) * 2;
+        const b0 = font_data[index];
+        const b1 = font_data[index + 1];
+        return [9]bool{
+            bconv(b1 & 0b00001),
+            bconv(b1 & 0b00010),
+            bconv(b1 & 0b00100),
+            bconv(b1 & 0b01000),
+            bconv(b1 & 0b10000),
+            bconv(b0 & 0b0001),
+            bconv(b0 & 0b0010),
+            bconv(b0 & 0b0100),
+            bconv(b0 & 0b1000),
+        };
+    }
+};
+fn filterText(fctx: *FilterCtx) !void {
+    if (fctx.image == null) return fctx.ai.err("No image is loaded. Try -new 10x10 before this.", .{});
+    const image = &fctx.image.?;
+
+    const fill_color_unparsed = fctx.ai.next() orelse return fctx.ai.err("Expected color eg #FFFFFF", .{});
+    const fill_color = parseFillColor(fill_color_unparsed.text) catch |e| return fill_color_unparsed.err(fctx.ai, "Expected color eg #FFFFFF ({})", .{e});
+
+    const file_path_user = fctx.ai.next() orelse return fctx.ai.err("Expected file path or `-` for stdin", .{});
+    const file_path = if (std.mem.eql(u8, file_path_user.text, "-")) "/dev/stdin" else file_path_user.text;
+
+    var file_v = std.fs.cwd().openFile(file_path, .{}) catch |e| return file_path_user.err(fctx.ai, "File error: {}", .{e});
+    defer file_v.close();
+
+    const in = file_v.reader();
+
+    var x: usize = 1;
+    var y: usize = 1;
+
+    const remaining: bool = while (true) {
+        const byte = in.readByte() catch |e| switch (e) {
+            error.EndOfStream => break false,
+            else => return file_path_user.err(fctx.ai, "File error: {}", .{e}),
+        };
+        if (byte == '\n') {
+            y += 4;
+            x = 1;
+        } else if (byte == '.') {
+            if (x + 1 >= image.w) {
+                x = 1;
+                y += 4;
+            }
+            if (y + 3 >= image.h) break true;
+            image.set(x, y + 2, fill_color);
+            x += 1;
+        } else {
+            if (x + 3 >= image.w) {
+                x = 1;
+                y += 4;
+            }
+            if (y + 3 >= image.h) break true;
+            const glyph = Font3x3.get(byte);
+            // what if character widths? might be interesting
+            // eg '.' would take 1px
+            for (range(3)) |_, oy| for (range(3)) |_, ox| {
+                if (glyph[oy * 3 + ox]) image.set(x + ox, y + oy, fill_color);
+            };
+            x += 4;
+        }
+    } else unreachable;
+
+    if (remaining and image.w >= 3 and image.h >= 1) {
+        for (range(image.w - 2)) |_, i| {
+            if (i % 2 == 0) image.set(i + 1, std.math.min(y, image.h - 1), fill_color);
+        }
+    }
 }
 fn filterVerticalScroll(fctx: *FilterCtx) !void {
     if (fctx.image == null) return fctx.ai.err("No image was loaded yet. Try -load image.png before this.", .{});
