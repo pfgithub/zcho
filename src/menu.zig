@@ -83,6 +83,8 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     defer if (ot) |o| cli.exitRawMode(stdinF, o) catch @panic("failed to exit");
 
     // get current cursor position. this is the end of the list.
+    // UH OH. todo fix :: if there is queued input getCursorPosition might read text that should have been read
+    // by stdin. eg spam the 1 key
     const end_pos = (cli.getCursorPosition(stdinF, out) catch |e| switch (e) {
         error.NotATTY => cli.RowCol{ .lyn = 0, .col = 0 },
         else => return e,
