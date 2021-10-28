@@ -120,7 +120,7 @@ pub fn range(max: usize) []const void {
     return @as([]const void, &[_]void{}).ptr[0..max];
 }
 
-pub fn allocDupe(alloc: *Alloc, a: anytype) !*@TypeOf(a) {
+pub fn allocDupe(alloc: *std.mem.Allocator, a: anytype) !*@TypeOf(a) {
     const c = try alloc.create(@TypeOf(a));
     c.* = a;
     return c;
@@ -140,7 +140,7 @@ pub fn anyMain(comptime mainFn: MainFn) fn () anyerror!u8 {
     return struct {
         fn main() !u8 {
             var gpalloc = std.heap.GeneralPurposeAllocator(.{}){};
-            defer std.testing.expect(!gpalloc.deinit());
+            defer std.debug.assert(!gpalloc.deinit());
 
             var arena = std.heap.ArenaAllocator.init(&gpalloc.allocator);
             defer arena.deinit();
@@ -183,7 +183,7 @@ const ClrEol = struct {
         const ai = exec_args.args_iter;
         const out = std.io.getStdOut().writer();
 
-        if (ai.next()) |arg| return ai.err("Args not allowed", .{});
+        if (ai.next()) |_| return ai.err("Args not allowed", .{});
         try out.writeAll("\x1b[K");
     }
     const shortdesc = "same as `tput el`";
@@ -193,6 +193,7 @@ const HelpPage = struct {
         const ai = exec_args.args_iter;
         const out = std.io.getStdOut().writer();
 
+        _ = ai;
         // if (ai.next()) |v| return ea.ai.err("Unexpected extra arg", .{});
         try out.writeAll("Usage:\n");
         try out.writeAll("    z [progname] [args...]\n");
@@ -221,19 +222,19 @@ pub const main = anyMain(struct {
     }
 }.mainfn);
 
-fn testReadNumber(args: []const []const u8, expected: ?[]const u8) void {
+fn testReadNumber(args: []const []const u8, expected: ?[]const u8) !void {
     const alloc = std.testing.allocator;
     var positionals = PositionalIter.positionalsFromArgs(args, alloc) catch @panic("oom");
     defer alloc.free(positionals);
     var ai = PositionalIter{ .args = positionals, .report_info = args };
     const valu = (ai.readValue(ai.next() orelse @panic("fail"), "--number") catch @panic("fail"));
-    if (valu) |v| if (expected) |e| std.testing.expectEqualStrings(v.text, e) else @panic("fail") //
-    else if (expected) |e| @panic("fail") else {}
+    if (valu) |v| if (expected) |e| try std.testing.expectEqualStrings(v.text, e) else @panic("fail") //
+    else if (expected) |_| @panic("fail") else {}
 }
 
 test "args iter" {
-    testReadNumber(&[_][]const u8{ "--number", "2" }, "2");
-    testReadNumber(&[_][]const u8{"--number=2"}, "2");
-    testReadNumber(&[_][]const u8{"--something-else"}, null);
+    try testReadNumber(&[_][]const u8{ "--number", "2" }, "2");
+    try testReadNumber(&[_][]const u8{"--number=2"}, "2");
+    try testReadNumber(&[_][]const u8{"--something-else"}, null);
 }
 // testpanic "" { testReadNumber(…) } // would be useful to have

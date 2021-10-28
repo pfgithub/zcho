@@ -61,10 +61,10 @@ pub fn wcwidth(char: u21) u2 {
 }
 
 test "string width" {
-    std.testing.expectEqual(@as(usize, 2), wcswidth("何"));
-    std.testing.expectEqual(@as(usize, 2), wcwidth('何'));
-    std.testing.expectEqual(@as(usize, 4), wcswidth("→何←"));
-    std.testing.expectEqual(@as(usize, 28), wcswidth("Hi there!→This is my string←"));
+    try std.testing.expectEqual(@as(usize, 2), wcswidth("何"));
+    try std.testing.expectEqual(@as(usize, 2), wcwidth('何'));
+    try std.testing.expectEqual(@as(usize, 4), wcswidth("→何←"));
+    try std.testing.expectEqual(@as(usize, 28), wcswidth("Hi there!→This is my string←"));
 }
 
 // std.binarySearch is intended for knowing

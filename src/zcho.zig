@@ -6,7 +6,6 @@ pub const main = help.anyMain(exec);
 
 pub fn exec(exec_args: help.MainFnArgs) !void {
     const ai = exec_args.args_iter;
-    const alloc = exec_args.arena_allocator;
     const out_unbuffered = std.io.getStdOut().writer();
 
     var buffered_out_stream = std.io.bufferedWriter(out_unbuffered);

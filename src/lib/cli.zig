@@ -20,10 +20,10 @@ pub fn exitFullscreen() !void {
     try print(EscapeCodes.rmcup);
 }
 
-fn tcflags(comptime itms: anytype) std.os.tcflag_t {
+fn tcflags(comptime itms: anytype) std.os.linux.tcflag_t {
     comptime {
-        var res: std.os.tcflag_t = 0;
-        for (itms) |itm| res |= @as(std.os.tcflag_t, @field(std.os, @tagName(itm)));
+        var res: std.os.linux.tcflag_t = 0;
+        for (itms) |itm| res |= @as(std.os.linux.tcflag_t, @field(std.os.linux, @tagName(itm)));
         return res;
     }
 }
@@ -34,7 +34,7 @@ pub fn enterRawMode(stdin: std.fs.File) !std.os.termios {
     var termios = origTermios;
     termios.iflag &= ~tcflags(.{ .BRKINT, .INPCK, .ISTRIP }); // icrnl/ixon differentiates ctrl+j and ctrl+m but ctrl+m is still read the same as enter
     // termios.oflag &= ~tcflags(.{.OPOST}); // requires printing \r\n rather than just \n
-    termios.cflag |= @as(std.os.tcflag_t, std.os.CS8);
+    termios.cflag |= @as(std.os.linux.tcflag_t, std.os.linux.CS8);
     termios.lflag &= ~tcflags(.{ .ECHO, .ICANON, .IEXTEN, .ISIG });
     try std.os.tcsetattr(stdin.handle, std.os.TCSA.FLUSH, termios);
     return origTermios;
@@ -43,16 +43,16 @@ pub fn exitRawMode(stdin: std.fs.File, orig: std.os.termios) !void {
     try std.os.tcsetattr(stdin.handle, std.os.TCSA.FLUSH, orig);
 }
 
-fn ioctl(fd: std.os.fd_t, request: u32, comptime ResT: type) !ResT {
+fn ioctl(fd: std.os.fd_t, request: c_int, comptime ResT: type) !ResT {
     var res: ResT = undefined;
     while (true) {
         switch (std.os.errno(std.os.system.ioctl(fd, request, @ptrToInt(&res)))) {
-            0 => break,
-            std.os.EBADF => return error.BadFileDescriptor,
-            std.os.EFAULT => unreachable, // Bad pointer param
-            std.os.EINVAL => unreachable, // Bad params
-            std.os.ENOTTY => return error.RequestDoesNotApply,
-            std.os.EINTR => continue,
+            .SUCCESS => break,
+            .BADF => return error.BadFileDescriptor,
+            .FAULT => unreachable, // Bad pointer param
+            .INVAL => unreachable, // Bad params
+            .NOTTY => return error.RequestDoesNotApply,
+            .INTR => continue,
             else => |err| return std.os.unexpectedErrno(err),
         }
     }
@@ -61,7 +61,7 @@ fn ioctl(fd: std.os.fd_t, request: u32, comptime ResT: type) !ResT {
 
 const TermSize = struct { w: u16, h: u16 };
 pub fn winSize(stdout: std.fs.File) !TermSize {
-    var wsz: std.os.linux.winsize = try ioctl(stdout.handle, std.os.linux.TIOCGWINSZ, std.os.linux.winsize);
+    var wsz: std.os.linux.winsize = try ioctl(stdout.handle, std.os.linux.T.IOCGWINSZ, std.os.linux.winsize);
     return TermSize{ .w = wsz.ws_col, .h = wsz.ws_row };
 }
 
@@ -123,7 +123,7 @@ pub const Event = union(enum) {
 
     pub fn from(text: []const u8) !Event {
         var resev: KeyEvent = .{ .keycode = .{ .character = 0 } };
-        var split = std.mem.tokenize(text, "+");
+        var split = std.mem.tokenize(u8, text, "+");
         b: while (split.next()) |section| {
             inline for (.{ "ctrl", "shift" }) |modifier| {
                 if (std.mem.eql(u8, section, modifier)) {
@@ -172,7 +172,7 @@ pub const Event = union(enum) {
             },
         }
     }
-    pub fn format(value: Event, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(value: Event, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         // var fniter = help.FunctionIterator(formatIter, Event, []const u8).init(value);
         // fniter.start();
         // var joinIter = help.iteratorJoin(fniter, "+");
@@ -334,7 +334,7 @@ pub fn nextEvent(stdinf: std.fs.File) !?Event {
                     'I' => return Event.focus,
                     '<' => {
                         const MouseButtonData = packed struct {
-                            button: packed enum(u2) { left = 0, middle = 1, right = 2, none = 3 },
+                            button: enum(u2) { left = 0, middle = 1, right = 2, none = 3 },
                             shift: u1,
                             alt: u1,
                             ctrl: u1,
@@ -393,7 +393,7 @@ pub fn nextEvent(stdinf: std.fs.File) !?Event {
                         return try readNormalCharacter(chr, .{ .ctrl = false, .shift = false });
                     },
                 },
-                else => |esch| return error.UnsupportedEvent,
+                else => return error.UnsupportedEvent,
             }
         },
         10 => return Event{ .key = .{ .keycode = .enter } },
@@ -438,7 +438,7 @@ pub const Color = struct {
             inline for (.{ .bg, .fg }) |bgfgmode| {
                 inline for (.{ true, false }) |bright| {
                     if (@enumToInt(color.code) == colrfld.value and mode == bgfgmode and color.bright == bright) {
-                        comptime const vtxt = switch (@as(BGFGMode, bgfgmode)) {
+                        const vtxt = comptime switch (@as(BGFGMode, bgfgmode)) {
                             .bg => if (bright) "10" else "4",
                             .fg => if (bright) "9" else "3",
                         };

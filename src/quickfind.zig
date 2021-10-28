@@ -23,7 +23,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
                 continue;
             }
             if (ai.readValue(arg, "--raw") catch return ai.err("Expected value", .{})) |rawv| {
-                try positionals.append(arg);
+                try positionals.append(rawv);
                 continue;
             }
             return ai.err("Bad arg. See --help", .{});
@@ -37,6 +37,9 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     var list = std.ArrayList(Entry).init(exec_args.allocator);
     defer list.deinit();
 
+    // todo
+    _ = base_folder;
+    _ = out;
     // while (true) {}
 }
 const Entry = struct { _todo: u1 };

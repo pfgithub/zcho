@@ -5,9 +5,7 @@ const Positional = help.Positional;
 
 pub const main = help.anyMain(exec);
 
-const Config = struct {
-    flag_enabled: bool = false,
-};
+const Config = struct {};
 
 pub fn exec(exec_args: help.MainFnArgs) !void {
     const ai = exec_args.args_iter;
@@ -38,5 +36,6 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     var oi = PositionalIter{ .args = positionals.toOwnedSlice(), .report_info = ai.report_info };
     if (oi.next()) |nxt| return nxt.err(&oi, "Too many arguments", .{});
 
-    try out.writeAll("TODO code here.\n");
+    _ = cfg;
+    try out.print("TODO code here.\n", .{});
 }

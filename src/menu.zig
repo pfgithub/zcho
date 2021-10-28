@@ -79,7 +79,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
 
     const stdinF = std.io.getStdIn();
 
-    const ot: ?std.os.linux.termios = cli.enterRawMode(stdinF) catch |e| null;
+    const ot: ?std.os.termios = cli.enterRawMode(stdinF) catch null;
     defer if (ot) |o| cli.exitRawMode(stdinF, o) catch @panic("failed to exit");
 
     // get current cursor position. this is the end of the list.

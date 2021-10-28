@@ -42,7 +42,6 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     const alloc = exec_args.arena_allocator;
     const out = std.io.getStdOut().writer();
 
-    const cmd_idx = ai.index;
     var cfg = Config{};
     var positionals = std.ArrayList(Positional).init(alloc);
     while (ai.next()) |arg| {
@@ -114,7 +113,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     switch (cfg.todo) {
         .list_presets => {
             const pmx = p_max orelse PMax{ .progress = 23, .max = 100 };
-            for (presets.keys) |key, i| {
+            for (presets.keys) |key| {
                 if (cfg.demo) {
                     try out.writeAll("[");
                     try printProgress(out, presets.get(key).?, cfg.width, pmx.progress, pmx.max);
@@ -151,7 +150,6 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
 
 fn printProgress(out: anytype, preset: Progress, width_chars: u16, raw_progress: u16, raw_max: u16) @TypeOf(out).Error!void {
     const progress: u32 = @as(u32, raw_progress) * width_chars;
-    const max: u32 = @as(u32, raw_max) * width_chars;
     const step = raw_max;
 
     for (range(width_chars)) |_, i| {
@@ -176,7 +174,7 @@ fn testPrintProgress(preset: Progress, width_chars: u16, raw_progress: u16, raw_
     defer al.deinit();
     const out = al.writer();
     try printProgress(out, preset, width_chars, raw_progress, raw_max);
-    std.testing.expectEqualStrings(expected, al.items);
+    try std.testing.expectEqualStrings(expected, al.items);
 }
 
 test "progress" {

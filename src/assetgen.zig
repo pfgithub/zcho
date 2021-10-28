@@ -156,7 +156,7 @@ const FilterCtx = struct {
     }
 };
 const helpHelp = "Print this message";
-fn filterHelp(fctx: *FilterCtx) !void {
+fn filterHelp(_: *FilterCtx) !void {
     std.debug.warn("Usage:\n", .{});
     std.debug.warn("    assetgen [filters]\n", .{});
     std.debug.warn("Example:\n", .{});
@@ -196,7 +196,7 @@ fn filterWrite(fctx: *FilterCtx) !void {
 // -new 10x10 -fill #FFF
 fn filterNew(fctx: *FilterCtx) !void {
     const size = fctx.ai.next() orelse return fctx.ai.err("Expected size eg 10x10", .{});
-    var tknzd = std.mem.tokenize(size.text, "x,");
+    var tknzd = std.mem.tokenize(u8, size.text, "x,");
 
     const width_str = tknzd.next() orelse return size.err(fctx.ai, "Expected size eg 10x10", .{});
     const height_str = tknzd.next() orelse return size.err(fctx.ai, "Expected size eg 10x10", .{});
@@ -445,6 +445,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     const ai = exec_args.args_iter;
     const alloc = exec_args.arena_allocator;
     const out = std.io.getStdOut().writer();
+    _ = out;
 
     var fctx: FilterCtx = .{
         .ai = exec_args.args_iter,

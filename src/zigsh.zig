@@ -119,17 +119,13 @@ const Positional = struct {
     index: usize,
     subindex: usize,
     raw: bool,
-    // this might be useless but what if readValue just read `abc=` or `abc` and then it was
-    // up to you to do ai.next() and ai.next() did stuff with subindex. anyway not necessary
-    // or useful.
-    // ok I'm doing that
     fn readValue(me: Positional, ai: *ArgsIter, expected: []const u8) ?void {
-        if (std.mem.eql(u8, arg, expcdt)) {
+        if (std.mem.eql(u8, me.text, expected)) {
             return;
         }
-        if (arg.len >= expected.len + 1 and std.mem.startsWith(u8, arg, expcdt) and arg[expected.len] == '=') {
-            ai.subindex = expcdt.len + 1;
-            return v;
+        if (me.text.len >= expected.len + 1 and std.mem.startsWith(u8, me.text, expected) and me.text[expected.len] == '=') {
+            ai.subindex = expected.len + 1;
+            return;
         }
         return null;
     }
@@ -137,65 +133,6 @@ const Positional = struct {
         return std.mem.eql(u8, me.text, expcdt);
     }
 };
-
-const ProgramOptions = struct {
-    request: enum { run, completion },
-    args: *ArgsIter,
-    execute: bool,
-    const ok = ProgramExitResult{ .ok = {} };
-
-    fn printRaw(text: []const u8) !void {
-        // TODO
-    }
-};
-
-// rather than using this exit result, argsiter will be mutated
-// that will be used to determine stuff
-const ProgramExitResult = union(enum) {
-    ok,
-};
-
-fn demoProgram(opts: ProgramOptions) !ProgramExitResult {
-    const Config = struct {
-        parsing_args: bool,
-        _: []const []const u8,
-    };
-    var cfg = Config{};
-    var positionals = std.ArrayList(Positional).init(alloc);
-    while (opts.ai.next()) |ar| {
-        const arg = ar.text;
-        if (!ar.raw and cfg.parsing_args and std.mem.startsWith(u8, arg, "-")) {
-            ai.mark(.flag);
-            if (std.mem.eql(u8, arg, "--")) {
-                cfg.parsing_args = false;
-                continue;
-            }
-            if (ar.readValue(ai, "--raw")) {
-                const rawv = ai.next() orelse return ai.expect("[value]", "Expected value");
-                try positionals.append(.{ .text = rawv, .pos = ai.index, .epos = ai.subindex });
-                continue;
-            }
-            if (ar.eql("--help")) {
-                cfg.todo = .display_help; // stops parsing any other arguments in case there are errors
-                // ArgsIter will know this and be able to show that the args are unused with different coloring
-                break;
-            }
-            return ai.suggest(&[_][]const u8{ "--help", "--raw", "--" }, "Bad arg. See --help");
-        }
-        ai.mark(.positional);
-        try positionals.append(.{ .text = arg, .pos = ai.index });
-    }
-    cfg._ = positionals.toOwnedSlice();
-
-    if (!opts.execute) return .ok;
-
-    try opts.printRaw("Demo program!");
-    // opts.updateFmt() is equivalent to \rmessage\x1b[???idk
-    // opts.appendFmt()
-    // opts.appendRaw()
-
-    return ok;
-}
 
 // TODO: terminfo I guess
 // https://github.com/ziglang/zig/pull/6150/files
@@ -278,6 +215,8 @@ const Prompt = struct {
     // maybe a seperate promptDisplay that tracks the current display state
     // and stuff? idk maybe not
     fn updateDisplay(prompt: *Prompt, out: anytype, show_hints: bool) !void {
+        _ = show_hints; // ?
+
         if (prompt.has_written_prompt) {
             try out.writeAll("\x1b8");
         } else {

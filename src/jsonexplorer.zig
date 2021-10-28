@@ -178,7 +178,7 @@ const JsonRender = struct {
                 var iter = hm.iterator();
                 var i: usize = 0;
                 while (iter.next()) |itm| : (i += 1) {
-                    try childNodesAL.append(.{ .key = .{ .str = itm.key }, .value = try JsonRender.init(alloc, itm.value, i) });
+                    try childNodesAL.append(.{ .key = .{ .str = itm.key_ptr.* }, .value = try JsonRender.init(alloc, itm.value_ptr.*, i) });
                 }
 
                 break :blk childNodesAL.toOwnedSlice();
@@ -217,7 +217,6 @@ pub fn renderJson(
     const pathv = if (depth) |d| if (startAt.forDepth(d)) |v| v.index else 0 else 0;
 
     const hovering = if (selection.hover) |hov| hov.x >= x and hov.y == y else false;
-    const focused = false;
     const bgstyl: ?cli.Color = if (hovering) cli.Color.from(.brblack) else null;
 
     if (hovering and selection.mouseup) me.open = !me.open;
@@ -282,7 +281,7 @@ pub fn renderJson(
     if (me.open) for (me.childNodes[pathv..]) |*node, i| {
         if (cy == h) break;
         // check if the next item is on the path
-        const onpath = if (depth) |d| i == 0 else false;
+        const onpath = if (depth) |_| i == 0 else false;
         cy += try renderJson(&node.value, out, node.key, x + 2, cy, h, theme, themeIndex + 1, selection, startAt, if (onpath) depth.? + 1 else null);
         if (cy > h) unreachable; // rendered out of screen
     };
@@ -335,7 +334,7 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
     const alloc = exec_args.allocator;
     const ai = exec_args.args_iter;
 
-    if (ai.next()) |arg| return ai.err("Usage: jsonexplorer < file.json", .{});
+    if (ai.next()) |_| return ai.err("Usage: jsonexplorer < file.json", .{});
 
     const stdinf = std.io.getStdIn();
 
@@ -365,7 +364,6 @@ pub fn exec(exec_args: help.MainFnArgs) !void {
 
     var stdin2file = try std.fs.openFileAbsolute("/dev/tty", .{ .read = true });
     defer stdin2file.close();
-    var stdin2 = stdin2file.reader();
 
     const rawMode = try cli.enterRawMode(stdin2file);
     defer cli.exitRawMode(stdin2file, rawMode) catch {};
