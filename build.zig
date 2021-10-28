@@ -31,7 +31,7 @@ pub fn build(b: *Builder) void {
         exe.setTarget(target);
         exe.setBuildMode(mode);
 
-        if (std.mem.eql(u8, tool, "assetgen") or std.mem.eql(u8, tool, "z")) {
+        if (std.mem.eql(u8, tool, "assetgen")) {
             exe.linkLibC();
             exe.addIncludeDir("src/lib/assetgen");
             exe.addCSourceFile("src/lib/assetgen/c.c", &[_][]const u8{});

@@ -174,7 +174,7 @@ const Programs = struct {
     zigsh: @import("zigsh.zig"),
     @"escape-sequence-debug": @import("escape_sequence_debug.zig"),
     menu: @import("menu.zig"),
-    assetgen: @import("assetgen.zig"),
+    // assetgen: @import("assetgen.zig"),
     clreol: ClrEol,
     @"--help": HelpPage,
 };

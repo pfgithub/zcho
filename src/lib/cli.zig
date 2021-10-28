@@ -43,7 +43,7 @@ pub fn exitRawMode(stdin: std.fs.File, orig: std.os.termios) !void {
     try std.os.tcsetattr(stdin.handle, std.os.TCSA.FLUSH, orig);
 }
 
-fn ioctl(fd: std.os.fd_t, request: c_int, comptime ResT: type) !ResT {
+fn ioctl(fd: std.os.fd_t, comptime request: comptime_int, comptime ResT: type) !ResT {
     var res: ResT = undefined;
     while (true) {
         switch (std.os.errno(std.os.system.ioctl(fd, request, @ptrToInt(&res)))) {
